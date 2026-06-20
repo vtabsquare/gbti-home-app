@@ -677,17 +677,18 @@ function combinedLivingFurniture(w: number, h: number): FurnitureItem[] {
   const sofaY = visualY + shortSide/2 - longSide/2;
   items.push({ type: 'l_sofa', x: sofaX, y: sofaY, w: shortSide, h: longSide, rotation: 270 });
 
-  // Side table at the left end of the sofa
-  const sideTableW = 2;
-  const sideTableH = 2;
-  items.push({ type: 'side_table', x: visualX, y: visualY - sideTableH - 0.2, w: sideTableW, h: sideTableH, rotation: 0 });
+  // Side table removed per request
+  // const sideTableW = 2;
+  // const sideTableH = 2;
+  // items.push({ type: 'side_table', x: visualX - sideTableW - 0.2, y: visualY + 0.5, w: sideTableW, h: sideTableH, rotation: 0 });
 
   // Floor lamp in the top-left corner
   items.push({ type: 'floor_lamp', x: G + 0.5, y: G + 0.5, w: 2, h: 2, rotation: 0 });
 
-  // Round coffee table centered in front of the sofa
-  const nookX = visualX + longSide * 0.55;
-  const nookY = visualY + shortSide * 0.45;
+  // Round coffee table centered in the nook of the sofa
+  // Since the sofa's corner is at Top-Right, the nook is in the Bottom-Left quadrant
+  const nookX = visualX + 3.5;
+  const nookY = visualY + 4.5;
   items.push({ type: 'round_coffee_table', x: nookX - ctR, y: nookY - ctR, w: ctR*2, h: ctR*2, rotation: 0 });
 
   // Rug

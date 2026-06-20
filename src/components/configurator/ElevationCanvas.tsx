@@ -2848,10 +2848,10 @@ const GarageInterior = ({ r, cx, cz, isNight, wallH = 10 }: { r: Plan['rooms'][n
 
   const Cars = () => (
     <>
-      <group position={[-w * 0.24, 0.18, h * 0.04]} rotation={[0, 0, 0]} scale={[1.6, 1.6, 1.6]}>
+      <group position={[-w * 0.24, 0.18, h * 0.04]} rotation={[0, 0, 0]} scale={[4.5, 4.5, 4.5]}>
         <ParkedCar color="#0a0f1e" accent="#080808" />
       </group>
-      <group position={[w * 0.24, 0.18, h * 0.04]} rotation={[0, 0, 0]} scale={[1.6, 1.6, 1.6]}>
+      <group position={[w * 0.24, 0.18, h * 0.04]} rotation={[0, 0, 0]} scale={[4.5, 4.5, 4.5]}>
         <ParkedCar color="#3d0000" accent="#080808" />
       </group>
     </>
@@ -3279,7 +3279,7 @@ const Carport = ({ plan, plotW, plotD, gateSide }: { plan: Plan; plotW: number; 
       )}
 
       {/* ── Parked car ── */}
-      <group position={[carX, cpElevation, carZ]} rotation={[0, carYaw, 0]} scale={[1.6, 1.6, 1.6]}>
+      <group position={[carX, cpElevation, carZ]} rotation={[0, carYaw, 0]} scale={[4.5, 4.5, 4.5]}>
         <ParkedCar color="#1f2a44" />
       </group>
     </group>
