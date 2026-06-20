@@ -136,7 +136,7 @@ const IndexInner = () => {
             transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
             className="fixed inset-0 z-[55]"
           >
-            <StartJourneyPage onProceed={() => setFlowStep('auth')} onSkip={() => setFlowStep('landing')} />
+            <StartJourneyPage onProceed={() => setFlowStep('auth')} />
           </motion.div>
         )}
       </AnimatePresence>

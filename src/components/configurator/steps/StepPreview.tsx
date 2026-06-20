@@ -10,8 +10,7 @@ import { Plan, splitPlanToFloors, applyDoubleStoreyLayoutStyle, Room, generateEm
 import { fetchElevationImagesByVariant, fetchElevationVariantFamily, normalizeParsedVariantAddons, resolveElevationVariant } from '@/lib/elevationVariants';
 import { toast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, BedDouble, Bath, CookingPot, Sofa, Trees, Fence, Eye, ChevronLeft, ChevronRight, X, Check, Save, History, Layers, PenTool, Building2, ArrowUpDown, Trash, Copy, ClipboardPaste, Upload, Plus, Image as ImageIcon, Move, Download } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Home, BedDouble, Bath, CookingPot, Sofa, Trees, Fence, Eye, ChevronLeft, ChevronRight, X, Check, Save, History, Layers, PenTool, Building2, ArrowUpDown, Trash, Copy, ClipboardPaste, Image as ImageIcon, Move, Download } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { FloorPlanCanvasHandle } from '../FloorPlanCanvas';
 
@@ -56,7 +55,7 @@ function getRoomTabs(plan: Plan): RoomTab[] {
 }
 
 export const StepPreview = ({ plan, onChange, onResetPlan }: Props) => {
-  const { roof, setRoof, material, setMaterial, addons, next, prev, planHistory, addHistoryRecord, removeHistoryRecord, setCustomPlan, customPlan, presetId, setPresetId, homeType, bedrooms, bathrooms, kitchen, setKitchen, advancedEditorMode, setAdvancedEditorMode, isDoubleStorey, setDoubleStorey, activeFloor, setActiveFloor, customFirstFloorPlan, setCustomFirstFloorPlan, savedPresets, packageLayouts, saveAsPreset, loadSavedPreset, loadedPresetId, updateSavedPreset, deleteSavedPreset, savePackageLayout, setPresetOverride, saveBuiltInPreset, presetOverrides, elevationImages, addElevationImage, removeElevationImage, garageShutterOpen, setGarageShutterOpen, layoutStyle, setLayoutStyle } = useConfig();
+  const { roof, setRoof, material, setMaterial, addons, next, prev, planHistory, addHistoryRecord, removeHistoryRecord, setCustomPlan, customPlan, presetId, setPresetId, homeType, bedrooms, bathrooms, kitchen, setKitchen, advancedEditorMode, setAdvancedEditorMode, isDoubleStorey, setDoubleStorey, activeFloor, setActiveFloor, customFirstFloorPlan, setCustomFirstFloorPlan, savedPresets, packageLayouts, saveAsPreset, loadSavedPreset, loadedPresetId, updateSavedPreset, deleteSavedPreset, savePackageLayout, setPresetOverride, saveBuiltInPreset, presetOverrides, elevationImages, garageShutterOpen, setGarageShutterOpen, layoutStyle, setLayoutStyle } = useConfig();
   const KITCHEN_META = useKitchenMeta();
   const isCustomPreset = presetId === -1;
   const [view, setView] = useState<'2d' | '3d' | 'elevation'>('2d');
@@ -71,7 +70,6 @@ export const StepPreview = ({ plan, onChange, onResetPlan }: Props) => {
   const [isSelectedAll, setIsSelectedAll] = useState(false);
   const [remoteElevationImages, setRemoteElevationImages] = useState<Record<string, { id: string; image_url: string; image_path: string; variant_id?: string | null; preset_key?: string }[]>>({});
   const [fetchedElevationKeys, setFetchedElevationKeys] = useState<Record<string, boolean>>({});
-  const [uploadingElevation, setUploadingElevation] = useState(false);
   const [availableVariants, setAvailableVariants] = useState<{ id: string; preset_key: string; image_count: number; sample_url: string; roof?: string | null; material?: string | null; visual_addons?: string[] }[]>([]);
   const [showVariantRecovery, setShowVariantRecovery] = useState(false);
   const [currentElevationVariantId, setCurrentElevationVariantId] = useState<string | null>(null);
@@ -149,85 +147,6 @@ export const StepPreview = ({ plan, onChange, onResetPlan }: Props) => {
       },
     }));
   }, []);
-
-  const handleElevationUpload = useCallback(async (file: File) => {
-    if (!file) return;
-    const safePresetKey = currentElevationPresetKey.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const filePath = `${safePresetKey}/${Date.now()}-${safeFileName}`;
-
-    setUploadingElevation(true);
-    try {
-      const { error: uploadError } = await supabase.storage
-        .from('elevation-images')
-        .upload(filePath, file, { upsert: false });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('elevation-images')
-        .getPublicUrl(filePath);
-
-      const imageUrl = publicUrlData.publicUrl;
-      const variant = await resolveElevationVariant({ homeType, bedrooms, bathrooms, kitchen, isDoubleStorey, addons, roof, material }, presetId);
-      setCurrentElevationVariantId(variant.id);
-
-      const { error: insertError } = await supabase
-        .from('elevation_images')
-        .insert({
-          preset_key: currentElevationPresetKey,
-          image_path: filePath,
-          image_url: imageUrl,
-          variant_id: variant.id,
-        });
-
-      if (insertError) throw insertError;
-
-      addElevationImage(currentElevationPresetKey, imageUrl);
-      await fetchElevationImages(currentElevationPresetKey, variant.id, elevationLookupKeys);
-      toast({ title: 'Image uploaded successfully' });
-    } catch (error: any) {
-      toast({
-        title: 'Upload failed',
-        description: error?.message || 'Unable to upload image to Supabase.',
-        variant: 'destructive',
-      });
-    } finally {
-      setUploadingElevation(false);
-    }
-  }, [addElevationImage, addons, bathrooms, bedrooms, currentElevationPresetKey, elevationLookupKeys, fetchElevationImages, homeType, isDoubleStorey, kitchen, material, presetId, roof]);
-
-  const handleElevationDelete = useCallback(async (presetKey: string, index: number) => {
-    const images = remoteElevationImages[presetKey] || [];
-    const target = images[index];
-    if (!target) {
-      removeElevationImage(presetKey, index);
-      return;
-    }
-
-    try {
-      const { error: storageError } = await supabase.storage
-        .from('elevation-images')
-        .remove([target.image_path]);
-      if (storageError) throw storageError;
-
-      const { error: deleteError } = await supabase
-        .from('elevation_images')
-        .delete()
-        .eq('id', target.id);
-      if (deleteError) throw deleteError;
-
-      removeElevationImage(presetKey, index);
-      await fetchElevationImages(presetKey, currentElevationVariantId);
-      toast({ title: 'Image removed' });
-    } catch (error: any) {
-      toast({
-        title: 'Delete failed',
-        description: error?.message || 'Unable to remove image from Supabase.',
-        variant: 'destructive',
-      });
-    }
-  }, [currentElevationVariantId, fetchElevationImages, remoteElevationImages, removeElevationImage]);
 
   useEffect(() => {
     if (view !== 'elevation') return;
@@ -1169,32 +1088,11 @@ export const StepPreview = ({ plan, onChange, onResetPlan }: Props) => {
                   initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
                   transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
                   
-                  {/* Elevation Header with Upload */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                     <div>
                       <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-foreground">Elevation Gallery</h3>
-                      <p className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.1em] mt-1">Manage architectural visuals for this preset</p>
+                      <p className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.1em] mt-1">Architectural visuals for this preset</p>
                     </div>
-                    
-                    {/*
-                    <label className={`flex items-center gap-2 h-10 rounded-xl bg-primary text-white px-5 text-[10px] font-bold uppercase tracking-[0.2em] hover:brightness-110 transition-all active:scale-95 cursor-pointer shadow-lg ${uploadingElevation ? 'opacity-70 pointer-events-none' : ''}`}>
-                      <Upload size={14} />
-                      {uploadingElevation ? 'Uploading...' : 'Upload Image'}
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        className="hidden" 
-                        disabled={uploadingElevation}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            handleElevationUpload(file);
-                          }
-                          e.currentTarget.value = '';
-                        }}
-                      />
-                    </label>
-                    */}
                   </div>
 
                   {/* Gallery Grid */}
@@ -1215,7 +1113,7 @@ export const StepPreview = ({ plan, onChange, onResetPlan }: Props) => {
                             </div>
                             <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-foreground mb-2">No Images Yet</h4>
                             <p className="text-[10px] text-muted-foreground/60 max-w-[320px] leading-relaxed">
-                              Upload architectural elevation drawings or site photos to visualize this specific layout configuration.
+                              Architectural elevation drawings or site photos will appear here for this specific layout configuration.
                             </p>
                             <p className="mt-4 text-[9px] text-muted-foreground/50 font-mono break-all max-w-md">
                               Current key: <span className="text-foreground/70">{currentElevationPresetKey}</span>
@@ -1272,38 +1170,9 @@ export const StepPreview = ({ plan, onChange, onResetPlan }: Props) => {
                                 >
                                   <Download size={18} />
                                 </a>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    remoteImages.length > 0 ? handleElevationDelete(presetKey, idx) : removeElevationImage(presetKey, idx);
-                                  }}
-                                  className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-500 text-white shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform hover:bg-red-600"
-                                  title="Delete Image"
-                                >
-                                  <Trash size={18} />
-                                </button>
                               </div>
                             </div>
                           ))}
-                          <label className="aspect-[4/3] rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 text-muted-foreground hover:bg-soft-section hover:border-primary/20 hover:text-primary transition-all cursor-pointer group">
-                            <div className="h-10 w-10 flex items-center justify-center rounded-full bg-soft-section group-hover:bg-primary/5">
-                              <Plus size={20} />
-                            </div>
-                            <span className="text-[9px] font-bold uppercase tracking-[0.2em]">Add More</span>
-                            <input 
-                              type="file" 
-                              accept="image/*" 
-                              className="hidden" 
-                              disabled={uploadingElevation}
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  handleElevationUpload(file);
-                                }
-                                e.currentTarget.value = '';
-                              }}
-                            />
-                          </label>
                         </div>
                       );
                     })()}

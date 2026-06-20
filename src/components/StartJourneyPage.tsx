@@ -5,7 +5,6 @@ import { GBTILogoMark } from './GBTILogo';
 
 interface StartJourneyPageProps {
   onProceed: () => void;
-  onSkip?: () => void;
 }
 
 /* ── Floating dot particle ─────────────────────────────────── */
@@ -35,7 +34,7 @@ const FloatingDot = ({ delay, x, y, size }: { delay: number; x: number; y: numbe
 );
 
 /* ── Main Component ────────────────────────────────────────── */
-export const StartJourneyPage = ({ onProceed, onSkip }: StartJourneyPageProps) => {
+export const StartJourneyPage = ({ onProceed }: StartJourneyPageProps) => {
   const [isExiting, setIsExiting] = useState(false);
   const [logoReady, setLogoReady] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
@@ -51,11 +50,6 @@ export const StartJourneyPage = ({ onProceed, onSkip }: StartJourneyPageProps) =
   const handleProceed = () => {
     setIsExiting(true);
     setTimeout(() => onProceed(), 900);
-  };
-
-  const handleSkip = () => {
-    setIsExiting(true);
-    setTimeout(() => (onSkip || onProceed)(), 900);
   };
 
   const particles = useMemo(
@@ -227,14 +221,6 @@ export const StartJourneyPage = ({ onProceed, onSkip }: StartJourneyPageProps) =
                     </div>
                     <span className="relative tracking-[0.15em] uppercase">Continue Here</span>
                     <ArrowRight size={15} className="relative transition-transform duration-500 group-hover:translate-x-1" />
-                  </button>
-
-                  <button
-                    onClick={handleSkip}
-                    disabled={isExiting}
-                    className="text-[10px] text-white/20 hover:text-white/40 uppercase tracking-[0.2em] transition-colors py-1"
-                  >
-                    Skip (Dev)
                   </button>
                 </motion.div>
 

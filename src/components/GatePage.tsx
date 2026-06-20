@@ -47,11 +47,10 @@ function getDeviceInfo() {
 
 interface GatePageProps {
   onProceed: () => void;
-  onSkip?: () => void;
   mode?: 'qr' | 'auth';
 }
 
-export const GatePage = ({ onProceed, onSkip, mode = 'qr' }: GatePageProps) => {
+export const GatePage = ({ onProceed, mode = 'qr' }: GatePageProps) => {
   const isMobile = useIsMobile();
   const { setLead } = useConfig();
   const [email, setEmail] = useState('');
@@ -75,13 +74,6 @@ export const GatePage = ({ onProceed, onSkip, mode = 'qr' }: GatePageProps) => {
     setTimeout(() => {
       onProceed();
       setIsDismantling(false);
-    }, 700);
-  };
-
-  const handleSkip = () => {
-    setIsDismantling(true);
-    setTimeout(() => {
-      (onSkip || onProceed)();
     }, 700);
   };
 
@@ -324,14 +316,6 @@ export const GatePage = ({ onProceed, onSkip, mode = 'qr' }: GatePageProps) => {
                   >
                     Continue Here
                     <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
-                  </button>
-
-                  <button
-                    onClick={handleSkip}
-                    disabled={isDismantling}
-                    className="text-[10px] text-white/20 hover:text-white/40 uppercase tracking-[0.2em] transition-colors"
-                  >
-                    Skip (Dev)
                   </button>
                 </motion.div>
 
