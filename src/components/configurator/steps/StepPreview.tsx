@@ -601,13 +601,7 @@ export const StepPreview = ({ plan, onChange, onResetPlan }: Props) => {
                     ))}
                   </div>
                   <div className="flex items-center gap-1 sm:border-l sm:border-border sm:pl-3 md:pl-4">
-                    <button
-                      onClick={() => { setView('2d'); setAdvancedEditorMode(true); setIsSelectedAll(false); }}
-                      className="flex items-center justify-center h-9 md:h-11 rounded-xl bg-primary text-white px-3 md:px-4 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.2em] hover:brightness-110 transition-all active:scale-95"
-                      title="Open custom editor mode"
-                    >
-                      <PenTool size={14} className="mr-1 sm:mr-2" /> Advanced
-                    </button>
+
                     <button
                       onClick={exportAsPDF}
                       className="flex items-center justify-center h-9 md:h-11 rounded-xl border border-border bg-white text-muted-foreground px-3 md:px-4 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-soft-section hover:text-foreground transition-all active:scale-95"

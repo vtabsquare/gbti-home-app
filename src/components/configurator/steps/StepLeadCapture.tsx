@@ -22,7 +22,7 @@ const TIMELINES = ['0–3 months', '3–6 months', '6–12 months', '12+ months'
 const INFOBIP_API_KEY = import.meta.env.VITE_INFOBIP_API_KEY;
 const INFOBIP_BASE_URL = import.meta.env.VITE_INFOBIP_BASE_URL;
 const INFOBIP_SENDER_EMAIL = import.meta.env.VITE_INFOBIP_SENDER_EMAIL;
-const INFOBIP_SENDER_NAME = import.meta.env.VITE_INFOBIP_SENDER_NAME || 'GBTI Architectural Team';
+const INFOBIP_SENDER_NAME = import.meta.env.VITE_INFOBIP_SENDER_NAME || 'GBTI Loans Team';
 
 // Tracked loan application link — Supabase increments click count per leadId
 const LOAN_APPLICATION_URL = 'https://gbtibank.com/apply-for-a-loan/';
@@ -124,7 +124,7 @@ const buildGBTIEmailHtml = ({
       <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 8px;">Our dedicated team is here to support you at every stage. If you have any questions or need guidance, please don't hesitate to reach out on</p>
       <p style="font-size:14px;font-weight:700;color:#003b6d;margin:0 0 24px;">+592 231 4400</p>
       <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 24px;">We look forward to helping you build your future.</p>
-      <p style="font-size:14px;color:#374151;margin:0 0 8px;">Best regards,<br><strong style="color:#003b6d;">GBTI Architectural Team</strong></p>
+      <p style="font-size:14px;color:#374151;margin:0 0 8px;">Best regards,<br><strong style="color:#003b6d;">GBTI Loans Team</strong></p>
     </div>
 
     <!-- Footer -->
@@ -186,7 +186,7 @@ const sendGBTIEmail = async ({
     'We look forward to helping you build your future.',
     '',
     'Best regards,',
-    'GBTI Architectural Team',
+    'GBTI Loans Team',
   ].join('\n'));
 
   if (pdfBlob) {
@@ -364,7 +364,9 @@ export const StepLeadCapture = ({ cost, plan, onReset }: Props) => {
   const propertyPrice = c.propertyPrice;
   const setPropertyPrice = c.setPropertyPrice;
 
-  const isPrivatePurchase = c.homeType === 'private_purchase';
+  // Turnkey Build and Young Professional users who click "Continue" in the external viewer
+  // are sent to this same step (Step 3) — they also need to input a property price.
+  const isPrivatePurchase = c.homeType === 'private_purchase' || c.homeType === 'turnkey' || c.homeType === 'young_professional';
   const effectiveTotal = isPrivatePurchase ? propertyPrice : cost.total;
   const effectiveLandCost = isPrivatePurchase ? 0 : cost.landCost;
   const effectiveLoanableAmount = isPrivatePurchase ? propertyPrice : (cost.total - (cost.nonLoanAddonsCost ?? 0));

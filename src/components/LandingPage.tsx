@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import { useState } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { GBTILogoMark } from './GBTILogo';
@@ -8,7 +8,7 @@ interface LandingPageProps {
   onStart: () => void;
   onExplore?: () => void;
   onTurnkeyBuild?: () => void;
-  onYoungProfessionalBuild?: () => void;
+  onYoungProfessionalSubSelect?: (variant: 'flat' | 'two_storey') => void;
   onPrivatePurchase?: () => void;
 }
 
@@ -108,8 +108,9 @@ const Card = ({ num, title, subtitle, description, img, onClick, disabled, soon,
 );
 
 /* ── Main Component ────────────────────────────────────────── */
-export const LandingPage = ({ onStart, onExplore, onTurnkeyBuild, onYoungProfessionalBuild, onPrivatePurchase }: LandingPageProps) => {
+export const LandingPage = ({ onStart, onExplore, onTurnkeyBuild, onYoungProfessionalSubSelect, onPrivatePurchase }: LandingPageProps) => {
   const [isBuilding, setIsBuilding] = useState(false);
+  const [showYPOptions, setShowYPOptions] = useState(false);
   const isMobile = useIsMobile();
 
   const handleStart = () => {
@@ -225,7 +226,7 @@ export const LandingPage = ({ onStart, onExplore, onTurnkeyBuild, onYoungProfess
               subtitle="Professional"
               description="Walk through this modern, and stylish living space —the perfect foundation for your career, lifestyle and future growth."
               img="/young_professional.png"
-              onClick={onYoungProfessionalBuild}
+              onClick={() => setShowYPOptions(true)}
             />
 
             {/* 3. Private Purchase */}
@@ -279,6 +280,89 @@ export const LandingPage = ({ onStart, onExplore, onTurnkeyBuild, onYoungProfess
         </motion.div>
 
       </div>
+
+      {/* ── Young Professional Sub-Selection Overlay ──────────── */}
+      <AnimatePresence>
+        {showYPOptions && (
+          <motion.div
+            key="yp-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center"
+            style={{ backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', backgroundColor: 'rgba(0,0,0,0.72)' }}
+            onClick={() => setShowYPOptions(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.93, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.93, y: 24 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              className="relative w-full max-w-md mx-4 rounded-3xl overflow-hidden"
+              style={{ background: 'linear-gradient(145deg, rgba(30,24,18,0.98) 0%, rgba(15,12,8,0.98) 100%)', border: '1px solid rgba(184,155,114,0.25)', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(184,155,114,0.08)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setShowYPOptions(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all duration-200 z-10"
+              >
+                <X size={15} />
+              </button>
+
+              {/* Header */}
+              <div className="px-7 pt-8 pb-5">
+                <div className="text-[#B89B72] text-[10px] font-bold uppercase tracking-[0.25em] mb-2">02. Young Professional</div>
+                <h2 className="text-white text-xl font-bold tracking-tight leading-snug">Select Your Home Style</h2>
+                <p className="text-white/40 text-xs mt-1.5 leading-relaxed">Choose the layout that fits your lifestyle and vision.</p>
+              </div>
+
+              {/* Divider */}
+              <div className="mx-7 h-px bg-gradient-to-r from-transparent via-[#B89B72]/20 to-transparent" />
+
+              {/* Options */}
+              <div className="px-7 py-6 space-y-3">
+
+                {/* Option 1: Flat */}
+                <motion.button
+                  whileHover={{ scale: 1.02, x: 4 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setShowYPOptions(false); onYoungProfessionalSubSelect?.('flat'); }}
+                  className="group w-full flex items-center justify-between gap-4 px-5 py-4 rounded-2xl text-left transition-all duration-300"
+                  style={{ background: 'rgba(184,155,114,0.07)', border: '1px solid rgba(184,155,114,0.18)' }}
+                >
+                  <div>
+                    <div className="text-white text-sm font-bold tracking-wide mb-0.5">Young Professional – Flat</div>
+                    <div className="text-white/40 text-[11px] leading-relaxed">Single-level modern living space</div>
+                  </div>
+                  <ArrowRight size={16} className="text-[#B89B72] flex-shrink-0 transition-transform group-hover:translate-x-1" />
+                </motion.button>
+
+                {/* Option 2: 2 Storey */}
+                <motion.button
+                  whileHover={{ scale: 1.02, x: 4 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setShowYPOptions(false); onYoungProfessionalSubSelect?.('two_storey'); }}
+                  className="group w-full flex items-center justify-between gap-4 px-5 py-4 rounded-2xl text-left transition-all duration-300"
+                  style={{ background: 'rgba(184,155,114,0.07)', border: '1px solid rgba(184,155,114,0.18)' }}
+                >
+                  <div>
+                    <div className="text-white text-sm font-bold tracking-wide mb-0.5">Young Professional – 2 Storey</div>
+                    <div className="text-white/40 text-[11px] leading-relaxed">Two-level home for expanded living</div>
+                  </div>
+                  <ArrowRight size={16} className="text-[#B89B72] flex-shrink-0 transition-transform group-hover:translate-x-1" />
+                </motion.button>
+              </div>
+
+              {/* Footer note */}
+              <div className="px-7 pb-6">
+                <p className="text-white/20 text-[10px] text-center uppercase tracking-[0.18em]">GBTI Smart Home Builder</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

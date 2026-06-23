@@ -222,7 +222,7 @@ export async function generateEstimatePDF(params: PDFGenerationParams): Promise<
   const configRows = [
     ['Home Type', HOME_TYPE_LABELS[c.homeType] || c.homeType],
     ['Finish Quality', c.finishingQuality === 'premium' ? 'Premium' : 'Standard'],
-    ['Storeys', c.isDoubleStorey ? 'Multi-Storey' : 'Bungalow'],
+    ['Storeys', c.isDoubleStorey ? 'Multi-Storey' : 'Flat'],
     ['Bedrooms', String(c.bedrooms)],
     ['Bathrooms', String(c.bathrooms)],
     ['Kitchen', c.kitchen === 'open' ? 'Open Plan' : c.kitchen === 'galley' ? 'Galley' : 'Standard'],

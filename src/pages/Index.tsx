@@ -25,6 +25,7 @@ const IndexInner = () => {
 
   type AppFlowStep = 'journey' | 'auth' | 'landing' | 'configurator' | 'external_viewer';
   const [flowStep, setFlowStep] = useState<AppFlowStep>('journey');
+  const [externalViewerUrl, setExternalViewerUrl] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const pricing = usePricing();
 
@@ -175,14 +176,23 @@ const IndexInner = () => {
               }}
               onTurnkeyBuild={() => {
                 config.setHomeType('turnkey');
+                config.setPropertyPrice(pricing.turnkey_cost);
+                setExternalViewerUrl('https://kuula.co/share/collection/7TPCR?logo=1&info=0&logosize=130&fs=1&vr=1&initload=0&thumbs=1');
                 setFlowStep('external_viewer');
               }}
-              onYoungProfessionalBuild={() => {
+              onYoungProfessionalSubSelect={(variant) => {
                 config.setHomeType('young_professional');
+                config.setPropertyPrice(pricing.young_professional_cost);
+                if (variant === 'flat') {
+                  setExternalViewerUrl('https://kuula.co/share/collection/7TPFF?logo=1&info=0&logosize=130&fs=1&vr=1&initload=0&thumbs=1');
+                } else {
+                  setExternalViewerUrl('https://kuula.co/share/collection/7TP1f?logo=1&info=0&logosize=130&fs=1&vr=1&initload=0&thumbs=1');
+                }
                 setFlowStep('external_viewer');
               }}
               onPrivatePurchase={() => {
                 config.setHomeType('private_purchase');
+                config.setPropertyPrice(0);
                 setFlowStep('configurator');
                 config.setStep(3);
               }}
@@ -201,7 +211,7 @@ const IndexInner = () => {
             className="fixed inset-0 z-[60]"
           >
             <ExternalViewerPage 
-              url="https://kuula.co/share/collection/7MwTX?logo=1&info=0&fs=1&vr=1&sd=1&initload=0&thumbs=1"
+              url={externalViewerUrl}
               onBack={() => setFlowStep('landing')}
               onContinue={() => {
                 setFlowStep('configurator');

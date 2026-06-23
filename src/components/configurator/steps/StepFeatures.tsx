@@ -58,7 +58,7 @@ export const StepFeatures = () => {
           </div>
           <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2">
             {[
-              { id: false, label: 'Bungalow', desc: 'Single-storey home design' },
+              { id: false, label: 'Flat', desc: 'Single-storey home design' },
               { id: true, label: 'Multi-Storey', desc: 'Multi-Storey home design' }
             ].map((k) => {
               const active = isDoubleStorey === k.id;

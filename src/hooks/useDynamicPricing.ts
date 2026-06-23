@@ -167,7 +167,7 @@ export function computeCostDynamic(c: ConfigState, p: PricingConfig, opts: { int
 
   if (c.homeType === 'turnkey' || c.homeType === 'young_professional' || c.homeType === 'private_purchase') {
     // Fixed price flows
-    baseStructure = c.homeType === 'turnkey' ? p.turnkey_cost : c.homeType === 'private_purchase' ? c.propertyPrice : p.young_professional_cost;
+    baseStructure = c.propertyPrice;
     const label = c.homeType === 'turnkey' ? 'Turnkey Build Package' : c.homeType === 'private_purchase' ? 'Private Purchase' : 'Young Professional Package';
     items = [
       { label, amount: baseStructure }
