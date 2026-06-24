@@ -467,14 +467,15 @@ export const StepLeadCapture = ({ cost, plan, onReset }: Props) => {
     const leadId = generateLeadId();
     leadIdRef.current = leadId;
 
-    const { error } = await supabase.from('leads').insert({
-      id: leadId,
-      name: c.name.trim(),
-      phone: c.phone.trim(),
-      email: c.email.trim(),
-      timeline: timelineVal,
-      config,
-      total_cost: cost.total,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)('submit_lead', {
+      p_id:         leadId,
+      p_name:       c.name.trim(),
+      p_phone:      c.phone.trim(),
+      p_email:      c.email.trim(),
+      p_timeline:   timelineVal,
+      p_config:     config,
+      p_total_cost: cost.total,
     });
 
     setSubmitting(false);
@@ -497,13 +498,11 @@ export const StepLeadCapture = ({ cost, plan, onReset }: Props) => {
     try {
       // Track email address changes
       if (emailChanged) {
-        await supabase.from('leads').update({
-          config: {
-            email_changed: true,
-            original_email: c.email.trim(),
-            delivery_email: finalEmail,
-          } as any,
-        }).eq('id', leadId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase.rpc as any)('update_lead_config', {
+          p_id:     leadId,
+          p_config: { email_changed: true, original_email: c.email.trim(), delivery_email: finalEmail },
+        });
       }
 
       // Generate PDF

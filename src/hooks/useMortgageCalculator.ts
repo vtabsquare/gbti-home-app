@@ -44,8 +44,10 @@ export function useMortgageCalculator(totalPropertyPrice: number) {
     async function fetchSettings() {
       try {
         const [mortgageRes, pricingRes] = await Promise.all([
-          supabase.from('mortgage_settings').select('*').limit(1).maybeSingle(),
-          supabase.from('admin_settings').select('*').eq('key', 'pricing').maybeSingle()
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase.rpc as any)('get_mortgage_settings') as Promise<{ data: any; error: any }>,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase.rpc as any)('get_pricing') as Promise<{ data: any; error: any }>,
         ]);
         
         if (!mortgageRes.error && mortgageRes.data) {

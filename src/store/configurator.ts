@@ -362,7 +362,9 @@ export const useConfig = create<ConfigState & ConfigActions>()(
       }),
       removeHistoryRecord: (id) => set((s) => ({ planHistory: s.planHistory.filter(r => r.id !== id) })),
       fetchSavedPresets: async () => {
-        const { data, error } = await supabase.from('presets').select('*').order('created_at', { ascending: true });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: rawData, error } = await (supabase.rpc as any)('get_presets') as { data: any[]; error: any };
+        const data = rawData ?? [];
         if (!error && data) {
           const state = get();
           const builtInRows = data.filter((row) => row.name?.startsWith(BUILT_IN_PRESET_PREFIX));
@@ -382,7 +384,8 @@ export const useConfig = create<ConfigState & ConfigActions>()(
         }
       },
       fetchPackageLayouts: async () => {
-        const { data, error } = await supabase.from('package_layouts').select('*');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase.rpc as any)('get_package_layouts') as { data: any[]; error: any };
         if (!error && data) {
           const state = get();
           const packageLayouts = data.reduce<Record<string, any>>((acc, row) => {
@@ -413,19 +416,14 @@ export const useConfig = create<ConfigState & ConfigActions>()(
             [packageKey]: fullPlan,
           },
         }));
-        await supabase.from('package_layouts').upsert({
-          package_key: packageKey,
-          plan_data: fullPlan as any,
-          updated_at: new Date().toISOString(),
-        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase.rpc as any)('upsert_package_layout', { p_package_key: packageKey, p_plan_data: fullPlan });
       },
       saveAsPreset: async (name, groundPlan, firstFloorPlan) => {
         const fullPlan = { ground: groundPlan, first: firstFloorPlan };
         const presetName = name.trim() || `Custom Preset ${get().savedPresets.length + 1}`;
-        const { data, error } = await supabase.from('presets').insert({
-          name: presetName,
-          plan_data: fullPlan as any,
-        }).select().single();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase.rpc as any)('save_preset', { p_name: presetName, p_plan_data: fullPlan }) as { data: any; error: any };
 
         if (error) {
           throw error;
@@ -449,7 +447,8 @@ export const useConfig = create<ConfigState & ConfigActions>()(
         set({ customPlan: groundPlan, customFirstFloorPlan: firstFloorPlan });
         
         if (state.loadedPresetId) {
-          await supabase.from('presets').update({ plan_data: fullPlan as any }).eq('id', state.loadedPresetId);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase.rpc as any)('update_preset', { p_id: state.loadedPresetId, p_plan_data: fullPlan });
           await state.fetchSavedPresets();
         } else {
           await state.saveAsPreset('Updated Preset', groundPlan, firstFloorPlan);
@@ -459,7 +458,8 @@ export const useConfig = create<ConfigState & ConfigActions>()(
         const state = get();
         const target = state.savedPresets[index];
         if (target && target.id) {
-          await supabase.from('presets').delete().eq('id', target.id);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase.rpc as any)('delete_preset', { p_id: target.id });
         }
         set((s) => {
           const isDeletingLoaded = s.loadedPresetId === target?.id;
