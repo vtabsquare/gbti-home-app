@@ -45,129 +45,55 @@ export const resolveElevationVariant = async (state: ElevationVariantState, pres
   const lookupKeys = getElevationLookupKeys(state, presetId);
   const legacyPresetKey = lookupKeys[0];
   const variantSignature = getElevationVariantSignature(state, presetId);
+  const visualAddons = getElevationVisualAddons(state.addons || []);
 
-  const { data: existingBySignature, error: signatureError } = await supabase
-    .from('elevation_variants')
-    .select('*')
-    .eq('variant_signature', variantSignature)
-    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.rpc as any)('resolve_elevation_variant', {
+    p_variant_signature: variantSignature,
+    p_legacy_preset_key: legacyPresetKey,
+    p_lookup_keys:       lookupKeys,
+    p_home_type:         state.homeType,
+    p_bedrooms:          state.bedrooms,
+    p_bathrooms:         state.bathrooms,
+    p_kitchen:           state.kitchen,
+    p_is_double_storey:  state.isDoubleStorey,
+    p_roof:              state.roof,
+    p_material:          state.material,
+    p_visual_addons:     visualAddons,
+    p_preset_id:         presetId,
+  });
 
-  if (signatureError) throw signatureError;
-
-  if (existingBySignature?.id) {
-    if (!existingBySignature.legacy_preset_key || existingBySignature.legacy_preset_key !== legacyPresetKey) {
-      const { data: updatedVariant, error: updateError } = await supabase
-        .from('elevation_variants')
-        .update({ legacy_preset_key: legacyPresetKey, updated_at: new Date().toISOString() })
-        .eq('id', existingBySignature.id)
-        .select('*')
-        .single();
-      if (updateError) throw updateError;
-      return updatedVariant as ElevationVariantRecord;
-    }
-    return existingBySignature as ElevationVariantRecord;
-  }
-
-  for (const key of lookupKeys) {
-    const { data: legacyVariant, error: legacyError } = await supabase
-      .from('elevation_variants')
-      .select('*')
-      .eq('legacy_preset_key', key)
-      .maybeSingle();
-
-    if (legacyError) throw legacyError;
-
-    if (legacyVariant?.id) {
-      if (legacyVariant.variant_signature !== variantSignature) {
-        const { data: updatedVariant, error: updateError } = await supabase
-          .from('elevation_variants')
-          .update({
-            ...buildVariantInsert(state, presetId, key),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', legacyVariant.id)
-          .select('*')
-          .single();
-        if (updateError) throw updateError;
-        return updatedVariant as ElevationVariantRecord;
-      }
-      return legacyVariant as ElevationVariantRecord;
-    }
-  }
-
-  const { data: insertedVariant, error: insertError } = await supabase
-    .from('elevation_variants')
-    .insert(buildVariantInsert(state, presetId, legacyPresetKey))
-    .select('*')
-    .single();
-
-  if (insertError) throw insertError;
-  return insertedVariant as ElevationVariantRecord;
+  if (error) throw error;
+  return data as ElevationVariantRecord;
 };
 
 export const fetchElevationImagesByVariant = async (
   variantId: string,
   lookupKeys: string[] = []
 ): Promise<ElevationImageRecord[]> => {
-  const seen = new Set<string>();
-  const collected: ElevationImageRecord[] = [];
-
-  const { data: byVariant, error: variantError } = await supabase
-    .from('elevation_images')
-    .select('id, image_url, image_path, variant_id, preset_key')
-    .eq('variant_id', variantId)
-    .order('created_at', { ascending: true });
-
-  if (variantError) throw variantError;
-
-  (byVariant || []).forEach((row) => {
-    const dedupeKey = row.id || row.image_url;
-    if (seen.has(dedupeKey)) return;
-    seen.add(dedupeKey);
-    collected.push(row as ElevationImageRecord);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.rpc as any)('fetch_elevation_images_by_variant', {
+    p_variant_id:  variantId,
+    p_lookup_keys: lookupKeys,
   });
 
-  if (collected.length > 0) {
-    return collected;
-  }
-
-  for (const key of lookupKeys) {
-    const { data, error } = await supabase
-      .from('elevation_images')
-      .select('id, image_url, image_path, variant_id, preset_key')
-      .eq('preset_key', key)
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-
-    (data || []).forEach((row) => {
-      const dedupeKey = row.id || row.image_url;
-      if (seen.has(dedupeKey)) return;
-      seen.add(dedupeKey);
-      collected.push(row as ElevationImageRecord);
-    });
-
-    if (collected.length > 0) {
-      return collected;
-    }
-  }
-
-  return collected;
+  if (error) throw error;
+  return (data || []) as ElevationImageRecord[];
 };
 
 export const fetchElevationVariantFamily = async (state: Pick<ElevationVariantState, 'homeType' | 'bedrooms' | 'bathrooms' | 'kitchen' | 'isDoubleStorey'>, presetId: number) => {
-  const { data, error } = await supabase
-    .from('elevation_variants')
-    .select('id, variant_signature, legacy_preset_key, home_type, bedrooms, bathrooms, kitchen, is_double_storey, roof, material, visual_addons, preset_id, elevation_images(id, image_url)')
-    .eq('home_type', state.homeType)
-    .eq('bedrooms', state.bedrooms)
-    .eq('bathrooms', state.bathrooms)
-    .eq('kitchen', state.kitchen)
-    .eq('is_double_storey', state.isDoubleStorey)
-    .eq('preset_id', presetId)
-    .order('updated_at', { ascending: false });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.rpc as any)('fetch_elevation_variant_family', {
+    p_home_type:        state.homeType,
+    p_bedrooms:         state.bedrooms,
+    p_bathrooms:        state.bathrooms,
+    p_kitchen:          state.kitchen,
+    p_is_double_storey: state.isDoubleStorey,
+    p_preset_id:        presetId,
+  });
 
   if (error) throw error;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data || []).map((row: any) => ({
     ...row,
     image_count: row.elevation_images?.length || 0,
