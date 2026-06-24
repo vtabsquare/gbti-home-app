@@ -515,7 +515,7 @@ const BlackStonePathway = ({ doorPos, plotW, plotD, isNight = false }: { doorPos
       </mesh>
     );
     return items;
-  }, [doorPos, marbleTextures, plotD, plotW]);
+  }, [doorPos, marbleTextures, plotD, plotW, isNight]);
 
   return <group>{elements}</group>;
 };

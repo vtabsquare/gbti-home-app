@@ -151,129 +151,51 @@ export const StepHomeType = () => {
         </button>
       </div>
 
-      {/* ── MOBILE: Full-width stacked cards (reference image layout) ── */}
-      <div className="flex flex-col gap-3 sm:hidden">
-        {TYPES.map(({ id, tag, desc, popular }, i) => {
+      {/* ── Home Type Cards — single responsive grid, no animation tricks ── */}
+      <div style={{ display: 'grid', gap: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+        {TYPES.map(({ id, tag, desc, popular }) => {
           const d = HOME_TYPE_META[id];
           const active = homeType === id;
           return (
-            <motion.button
+            <button
               key={id}
               type="button"
               onClick={() => setHomeType(id)}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-              className={`relative w-full text-left rounded-2xl border transition-all duration-300 overflow-hidden ${
+              className={`group relative w-full text-left rounded-2xl p-6 transition-all duration-300 border flex flex-col gap-4 ${
                 active
-                  ? 'bg-surface border-clay/40 shadow-[0_4px_24px_-8px_rgba(184,155,114,0.25)]'
-                  : 'bg-surface/60 border-border/60 hover:bg-surface hover:border-border'
+                  ? 'bg-surface shadow-elev border-clay/30'
+                  : 'bg-surface/60 border-border hover:bg-surface hover:border-muted-foreground/20 hover:shadow-soft'
               }`}
             >
-              {/* Selected indicator dot */}
-              {active && (
-                <span className="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-clay" />
-              )}
+              {active && <span className="absolute top-4 right-4 w-2 h-2 rounded-full bg-clay" />}
 
-              <div className="px-4 pt-4 pb-0">
-                {/* Tag row */}
-                <div
-                  className={`text-[8px] uppercase tracking-[0.28em] font-bold mb-2 ${
-                    popular
-                      ? active ? 'text-clay' : 'text-clay/70'
-                      : active ? 'text-muted-foreground/80' : 'text-muted-foreground/40'
-                  }`}
-                >
+              <div>
+                <div className={`text-[10px] uppercase tracking-[0.28em] font-bold mb-2 ${
+                  popular
+                    ? active ? 'text-clay' : 'text-clay/70'
+                    : active ? 'text-muted-foreground/80' : 'text-muted-foreground/40'
+                }`}>
                   {tag}
                 </div>
-
-                {/* Title */}
-                <h3 className="font-display text-[26px] font-normal tracking-tight text-foreground leading-none mb-1">
+                <h3 className="font-display text-2xl font-normal tracking-tight text-foreground leading-none mb-1">
                   {d.label}
                 </h3>
-
-                {/* Sqft + Bed */}
-                <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 mb-3 num">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 num mt-1">
                   {d.areaRange[0].toLocaleString()}–{d.areaRange[1].toLocaleString()} SQ FT · {d.bedrooms} BED
                 </div>
-
-                {/* Description */}
-                <p className="text-[11px] text-muted-foreground leading-relaxed font-light mb-4">
+                <p className="mt-3 text-sm text-muted-foreground leading-relaxed font-light">
                   {desc}
                 </p>
               </div>
 
-              {/* Divider */}
-              <div className={`mx-4 border-t ${active ? 'border-clay/20' : 'border-border/60'}`} />
-
-              {/* Bottom row: Estimated price + house silhouette */}
-              <div className="px-4 pt-3 pb-4 flex items-end justify-between">
+              <div className={`pt-4 border-t flex items-end justify-between ${active ? 'border-clay/20' : 'border-border/60'}`}>
                 <div>
-                  <div className="text-[8px] uppercase tracking-[0.2em] text-muted-foreground/50 mb-1 font-bold">
-                    Estimated
-                  </div>
-                  <div className={`font-display text-[20px] font-normal num tracking-tight ${active ? 'text-foreground' : 'text-foreground/80'}`}>
-                    {formatMoney(d.baseCost)}
-                  </div>
+                  <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground/50 mb-1 font-bold">Estimated</div>
+                  <div className="font-display text-xl font-normal num tracking-tight text-foreground">{formatMoney(d.baseCost)}</div>
                 </div>
-
                 <HouseSilhouette type={id} active={active} />
               </div>
-            </motion.button>
-          );
-        })}
-      </div>
-
-      {/* ── DESKTOP: Original grid layout (unchanged) ── */}
-      <div className="hidden sm:grid gap-6 md:gap-8 sm:grid-cols-2 lg:grid-cols-3">
-        {TYPES.map(({ id, tag, desc }, i) => {
-          const d = HOME_TYPE_META[id];
-          const active = homeType === id;
-          return (
-            <motion.div
-              key={id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-              className="h-full"
-            >
-              <button
-                type="button"
-                onClick={() => setHomeType(id)}
-                className={`group relative w-full h-full overflow-hidden rounded-2xl p-6 text-left transition-all duration-500 border flex flex-col justify-between ${
-                  active
-                    ? 'bg-surface shadow-elev border-clay/30 scale-[1.01]'
-                    : 'bg-surface/50 border-border hover:border-muted-foreground/20 hover:bg-surface hover:shadow-soft'
-                }`}
-              >
-                <div className="relative z-10 flex-1 flex flex-col">
-                  <div className={`text-[10px] uppercase tracking-[0.3em] font-bold mb-3 ${active ? 'text-clay' : 'text-muted-foreground/40'}`}>
-                    {tag}
-                  </div>
-                  <h3 className="font-display text-2xl md:text-3xl font-normal tracking-tight text-foreground leading-none">
-                    {d.label}
-                  </h3>
-                  <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 num">
-                    {d.areaRange[0].toLocaleString()}/{d.areaRange[1].toLocaleString()} SQ FT · {d.bedrooms} BED
-                  </div>
-                  <p className="mt-5 text-sm text-muted-foreground leading-relaxed font-light flex-1">
-                    {desc}
-                  </p>
-                </div>
-
-                <div className="mt-8 pt-6 border-t border-border flex flex-row items-end justify-between">
-                  <div>
-                    <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground/40 mb-1 font-bold">Estimated</div>
-                    <div className="font-display text-xl font-normal num tracking-tight text-foreground">{formatMoney(d.baseCost)}</div>
-                  </div>
-                  <HouseSilhouette type={id} active={active} />
-                </div>
-
-                {active && (
-                  <div className="absolute top-4 right-4 h-2 w-2 rounded-full bg-clay" />
-                )}
-              </button>
-            </motion.div>
+            </button>
           );
         })}
       </div>

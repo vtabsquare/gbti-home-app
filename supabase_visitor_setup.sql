@@ -9,7 +9,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- Temporary OTP storage for visitor email verification
 CREATE TABLE IF NOT EXISTS visitor_otps (
   email TEXT PRIMARY KEY,
-  otp_code TEXT NOT NULL,
+  otp_hash TEXT NOT NULL,
+  otp_salt TEXT NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -45,14 +46,26 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_code TEXT;
+  v_salt TEXT;
+  v_hash TEXT;
 BEGIN
-  v_code := LPAD(FLOOR(RANDOM() * 1000000)::TEXT, 6, '0');
+  -- Generate cryptographically random 6-digit OTP
+  v_code := LPAD((get_byte(gen_random_bytes(3), 0)::int |
+                  (get_byte(gen_random_bytes(3), 1)::int << 8) |
+                  (get_byte(gen_random_bytes(3), 2)::int << 16))::int % 1000000, 6, '0')::TEXT;
 
-  INSERT INTO visitor_otps (email, otp_code, expires_at)
-  VALUES (LOWER(TRIM(p_email)), v_code, NOW() + INTERVAL '10 minutes')
+  -- Generate unique random salt
+  v_salt := encode(gen_random_bytes(16), 'hex');
+
+  -- Hash OTP with salt
+  v_hash := encode(digest(v_code || v_salt, 'sha256'), 'hex');
+
+  INSERT INTO visitor_otps (email, otp_hash, otp_salt, expires_at)
+  VALUES (LOWER(TRIM(p_email)), v_hash, v_salt, NOW() + INTERVAL '10 minutes')
   ON CONFLICT (email) DO UPDATE SET
-    otp_code = v_code,
-    expires_at = NOW() + INTERVAL '10 minutes',
+    otp_hash = EXCLUDED.otp_hash,
+    otp_salt = EXCLUDED.otp_salt,
+    expires_at = EXCLUDED.expires_at,
     created_at = NOW();
 
   RETURN v_code;
@@ -66,20 +79,25 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_valid BOOLEAN;
+  v_record visitor_otps%ROWTYPE;
+  v_submitted_hash TEXT;
 BEGIN
-  SELECT EXISTS(
-    SELECT 1 FROM visitor_otps
-    WHERE email = LOWER(TRIM(p_email))
-      AND otp_code = p_otp
-      AND expires_at > NOW()
-  ) INTO v_valid;
+  SELECT * INTO v_record FROM visitor_otps
+  WHERE email = LOWER(TRIM(p_email))
+    AND expires_at > NOW();
 
-  IF v_valid THEN
-    DELETE FROM visitor_otps WHERE email = LOWER(TRIM(p_email));
+  IF v_record.email IS NULL THEN
+    RETURN FALSE;
   END IF;
 
-  RETURN v_valid;
+  v_submitted_hash := encode(digest(p_otp || v_record.otp_salt, 'sha256'), 'hex');
+
+  IF v_submitted_hash = v_record.otp_hash THEN
+    DELETE FROM visitor_otps WHERE email = LOWER(TRIM(p_email));
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE;
 END;
 $$;
 
