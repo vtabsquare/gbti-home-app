@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   BarChart3, Users, Mail, Download, Settings, Layout, ChevronLeft, ChevronRight,
   Search, Trash2, CheckSquare, Square, Send, X, DollarSign, Home, Wrench,
-  TrendingUp, Calendar, Eye, Image, RefreshCw, ArrowLeft
+  TrendingUp, Calendar, Eye, Image, RefreshCw, ArrowLeft, LogOut
 } from 'lucide-react';
 
 import * as XLSX from 'xlsx';
@@ -121,14 +121,78 @@ const AdminDashboard = () => {
   const [presets, setPresets] = useState<any[]>([]);
   const [elevationImages, setElevationImages] = useState<any[]>([]);
 
-  // ── Data Fetching ────────────────────────────────────────────────────────
+  // ── Auth state (GBTI-WEB-04 fix) ─────────────────────────────────────────
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [loginStep, setLoginStep] = useState<'email' | 'otp'>('email');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginOtp, setLoginOtp] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  // ── Session verification on mount ─────────────────────────────────────────
+  useEffect(() => {
+    const verify = async () => {
+      const token = localStorage.getItem('admin_session_token');
+      if (!token) { setAuthChecked(true); setLoading(false); return; }
+      const { data } = await supabase.rpc('verify_admin_session', { p_token: token });
+      if (data) {
+        setSessionToken(token);
+        setIsAuthenticated(true);
+      } else {
+        localStorage.removeItem('admin_session_token');
+        setLoading(false);
+      }
+      setAuthChecked(true);
+    };
+    verify();
+  }, []);
+
+  // ── Login handlers ────────────────────────────────────────────────────────
+  const handleSendOtp = async () => {
+    setLoginLoading(true);
+    const { error } = await supabase.rpc('send_admin_login_otp', { p_email: loginEmail.trim() });
+    if (error) toast.error('Failed to send OTP — check the email address.');
+    else { setLoginStep('otp'); toast.success('OTP sent — check your email'); }
+    setLoginLoading(false);
+  };
+
+  const handleVerifyOtp = async () => {
+    setLoginLoading(true);
+    const { data, error } = await supabase.rpc('verify_admin_login_otp', {
+      p_otp: loginOtp.trim(),
+      p_email: loginEmail.trim(),
+    });
+    if (error || !data) {
+      toast.error('Invalid or expired OTP');
+    } else {
+      localStorage.setItem('admin_session_token', data.session_token);
+      setSessionToken(data.session_token);
+      setIsAuthenticated(true);
+      toast.success('Logged in successfully');
+    }
+    setLoginLoading(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_session_token');
+    setSessionToken(null);
+    setIsAuthenticated(false);
+    setLeads([]);
+    setLoginStep('email');
+    setLoginOtp('');
+  };
+
+  // ── Data Fetching (via Edge Function for sensitive tables) ────────────────
 
   const fetchLeads = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('leads')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (!error && data) setLeads(data as Lead[]);
+    const token = localStorage.getItem('admin_session_token');
+    if (!token) return;
+    const { data: result, error } = await supabase.functions.invoke('admin-api', {
+      body: { action: 'get_leads' },
+      headers: { 'x-session-token': token },
+    });
+    if (!error && result?.data) setLeads(result.data as Lead[]);
     else if (error) toast.error('Failed to load leads');
   }, []);
 
@@ -154,13 +218,14 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     const loadAll = async () => {
       setLoading(true);
       await Promise.all([fetchLeads(), fetchPricing(), fetchPresets(), fetchElevationImages()]);
       setLoading(false);
     };
     loadAll();
-  }, [fetchLeads, fetchPricing, fetchPresets, fetchElevationImages]);
+  }, [isAuthenticated, fetchLeads, fetchPricing, fetchPresets, fetchElevationImages]);
 
   // ── SEO ────────────────────────────────────────────────────────────────────
 
@@ -176,6 +241,57 @@ const AdminDashboard = () => {
     { id: 'pricing', label: 'Pricing', icon: <DollarSign size={18} /> },
     { id: 'layouts', label: 'Layouts', icon: <Layout size={18} /> },
   ];
+
+  // ── Login / auth-check screens ────────────────────────────────────────────
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: 'linear', duration: 1 }}
+          className="w-8 h-8 border-2 border-clay/20 border-t-clay rounded-full" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-full max-w-sm mx-auto p-8">
+          <div className="text-center mb-8">
+            <img src="/gbti-logo.png" alt="GBTI" className="h-10 mx-auto mb-4 object-contain" />
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Admin Login</h1>
+            <p className="text-muted-foreground text-sm mt-1">Enter your admin email to receive an OTP</p>
+          </div>
+          {loginStep === 'email' ? (
+            <div className="space-y-4">
+              <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
+                placeholder="admin@example.com" autoFocus
+                className="w-full px-4 py-3 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-clay/40 text-sm"
+                onKeyDown={e => e.key === 'Enter' && handleSendOtp()} />
+              <button onClick={handleSendOtp} disabled={loginLoading || !loginEmail.trim()}
+                className="w-full py-3 rounded-xl bg-clay text-white font-medium text-sm hover:bg-clay/90 disabled:opacity-50 transition-all">
+                {loginLoading ? 'Sending...' : 'Send OTP'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground text-center">OTP sent to <strong>{loginEmail}</strong></p>
+              <input type="text" value={loginOtp} onChange={e => setLoginOtp(e.target.value)}
+                placeholder="6-digit OTP" maxLength={6} autoFocus
+                className="w-full px-4 py-3 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-clay/40 text-sm text-center tracking-widest text-lg"
+                onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()} />
+              <button onClick={handleVerifyOtp} disabled={loginLoading || loginOtp.length < 6}
+                className="w-full py-3 rounded-xl bg-clay text-white font-medium text-sm hover:bg-clay/90 disabled:opacity-50 transition-all">
+                {loginLoading ? 'Verifying...' : 'Verify OTP'}
+              </button>
+              <button onClick={() => setLoginStep('email')} className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors">
+                &larr; Back
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -237,6 +353,20 @@ const AdminDashboard = () => {
           ))}
         </nav>
 
+        {/* Logout */}
+        <div className="px-3 pt-2">
+          <button onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/50 hover:text-red-400 hover:bg-white/5 transition-all text-sm">
+            <LogOut size={18} className="flex-shrink-0" />
+            <AnimatePresence>
+              {!sidebarCollapsed && (
+                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="whitespace-nowrap font-medium">Logout</motion.span>
+              )}
+            </AnimatePresence>
+          </button>
+        </div>
+
         {/* Back to app */}
         <div className="p-3 border-t border-white/10">
           <a
@@ -288,7 +418,7 @@ const AdminDashboard = () => {
         ) : (
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && <DashboardTab key="dashboard" leads={leads} />}
-            {activeTab === 'leads' && <LeadsTab key="leads" leads={leads} onRefresh={fetchLeads} />}
+            {activeTab === 'leads' && <LeadsTab key="leads" leads={leads} onRefresh={fetchLeads} sessionToken={sessionToken} />}
             {activeTab === 'pricing' && <PricingTab key="pricing" pricing={pricing} onSave={setPricing} />}
             {activeTab === 'layouts' && <LayoutsTab key="layouts" presets={presets} elevationImages={elevationImages} onRefresh={() => { fetchPresets(); fetchElevationImages(); }} />}
           </AnimatePresence>
@@ -469,7 +599,7 @@ const DashboardTab = ({ leads }: { leads: Lead[] }) => {
 
 // ─── Leads Tab ───────────────────────────────────────────────────────────────
 
-const LeadsTab = ({ leads, onRefresh }: { leads: Lead[]; onRefresh: () => Promise<void> }) => {
+const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh: () => Promise<void>; sessionToken: string | null }) => {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -507,7 +637,11 @@ const LeadsTab = ({ leads, onRefresh }: { leads: Lead[]; onRefresh: () => Promis
 
   const deleteLead = async (id: string) => {
     if (!confirm('Delete this lead permanently?')) return;
-    const { error } = await supabase.from('leads').delete().eq('id', id);
+    if (!sessionToken) { toast.error('Session expired — please log in again'); return; }
+    const { error } = await supabase.functions.invoke('admin-api', {
+      body: { action: 'delete_lead', payload: { id } },
+      headers: { 'x-session-token': sessionToken },
+    });
     if (error) toast.error('Failed to delete');
     else {
       toast.success('Lead deleted');
