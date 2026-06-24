@@ -108,7 +108,7 @@ Deno.serve(async (req: Request) => {
     const apiKey = Deno.env.get('INFOBIP_API_KEY');
     const baseUrl = Deno.env.get('INFOBIP_BASE_URL');
     const senderEmail = Deno.env.get('INFOBIP_SENDER_EMAIL');
-    const senderName = Deno.env.get('INFOBIP_SENDER_NAME') || 'GBTI Architectural Team';
+    const senderName = Deno.env.get('INFOBIP_SENDER_NAME') || 'GBTI Loans Team';
 
     if (!apiKey || !baseUrl || !senderEmail) {
       return new Response(JSON.stringify({ error: 'Missing Infobip configuration' }), {
