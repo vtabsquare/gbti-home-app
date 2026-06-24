@@ -13,5 +13,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  db: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    schema: 'api' as any,
+  },
 });

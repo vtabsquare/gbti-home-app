@@ -236,17 +236,13 @@ export function useDynamicPricing() {
 
   const fetchPricing = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('admin_settings')
-        .select('value')
-        .eq('key', 'pricing')
-        .maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)('get_pricing') as { data: any; error: any };
       if (!error && data?.value) {
         setPricing(mergePricing(data.value));
       }
-      // If error (table doesn't exist yet), just use defaults silently
     } catch {
-      // admin_settings table may not exist — use defaults
+      // api.get_pricing not yet available — use defaults
     }
     setLoaded(true);
   }, []);

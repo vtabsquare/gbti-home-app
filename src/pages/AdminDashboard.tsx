@@ -135,7 +135,8 @@ const AdminDashboard = () => {
     const verify = async () => {
       const token = localStorage.getItem('admin_session_token');
       if (!token) { setAuthChecked(true); setLoading(false); return; }
-      const { data } = await supabase.rpc('verify_admin_session', { p_token: token });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase.rpc as any)('verify_admin_session', { p_token: token });
       if (data) {
         setSessionToken(token);
         setIsAuthenticated(true);
@@ -151,7 +152,8 @@ const AdminDashboard = () => {
   // ── Login handlers ────────────────────────────────────────────────────────
   const handleSendOtp = async () => {
     setLoginLoading(true);
-    const { error } = await supabase.rpc('send_admin_login_otp', { p_email: loginEmail.trim() });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)('send_admin_login_otp', { p_email: loginEmail.trim() });
     if (error) toast.error('Failed to send OTP — check the email address.');
     else { setLoginStep('otp'); toast.success('OTP sent — check your email'); }
     setLoginLoading(false);
@@ -159,15 +161,16 @@ const AdminDashboard = () => {
 
   const handleVerifyOtp = async () => {
     setLoginLoading(true);
-    const { data, error } = await supabase.rpc('verify_admin_login_otp', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)('verify_admin_login_otp', {
       p_otp: loginOtp.trim(),
       p_email: loginEmail.trim(),
-    });
+    }) as { data: any; error: any };
     if (error || !data) {
       toast.error('Invalid or expired OTP');
     } else {
-      localStorage.setItem('admin_session_token', data.session_token);
-      setSessionToken(data.session_token);
+      localStorage.setItem('admin_session_token', (data as any).session_token);
+      setSessionToken((data as any).session_token);
       setIsAuthenticated(true);
       toast.success('Logged in successfully');
     }
@@ -197,23 +200,22 @@ const AdminDashboard = () => {
   }, []);
 
   const fetchPricing = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('admin_settings')
-      .select('*')
-      .eq('key', 'pricing')
-      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)('get_pricing') as { data: any; error: any };
     if (!error && data?.value) {
       setPricing({ ...DEFAULT_PRICING, ...(data.value as any) });
     }
   }, []);
 
   const fetchPresets = useCallback(async () => {
-    const { data, error } = await supabase.from('presets').select('*').order('created_at', { ascending: false });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)('get_presets') as { data: any[]; error: any };
     if (!error && data) setPresets(data);
   }, []);
 
   const fetchElevationImages = useCallback(async () => {
-    const { data, error } = await supabase.from('elevation_images').select('*').order('created_at', { ascending: false });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)('get_elevation_images') as { data: any[]; error: any };
     if (!error && data) setElevationImages(data);
   }, []);
 
@@ -977,10 +979,11 @@ const PricingTab = ({ pricing, onSave }: { pricing: PricingConfig; onSave: (p: P
 
   const save = async () => {
     setSaving(true);
-    const { error } = await supabase.from('admin_settings').upsert({
-      key: 'pricing',
-      value: local as any,
-      updated_at: new Date().toISOString(),
+    const token = localStorage.getItem('admin_session_token');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)('admin_update_pricing', {
+      p_token: token,
+      p_value: local,
     });
     setSaving(false);
     if (error) toast.error('Failed to save pricing');
@@ -1112,14 +1115,17 @@ const PriceInput = ({ label, value, onChange, prefix, suffix }: { label: string;
 const LayoutsTab = ({ presets, elevationImages, onRefresh }: { presets: any[]; elevationImages: any[]; onRefresh: () => void }) => {
   const deletePreset = async (id: string) => {
     if (!confirm('Delete this preset permanently?')) return;
-    const { error } = await supabase.from('presets').delete().eq('id', id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)('delete_preset', { p_id: id });
     if (error) toast.error('Failed to delete preset');
     else { toast.success('Preset deleted'); onRefresh(); }
   };
 
   const deleteElevation = async (id: string) => {
     if (!confirm('Delete this elevation image?')) return;
-    const { error } = await supabase.from('elevation_images').delete().eq('id', id);
+    const token = localStorage.getItem('admin_session_token');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)('admin_delete_elevation_image', { p_token: token, p_id: id });
     if (error) toast.error('Failed to delete');
     else { toast.success('Elevation image deleted'); onRefresh(); }
   };
@@ -1141,10 +1147,11 @@ const LayoutsTab = ({ presets, elevationImages, onRefresh }: { presets: any[]; e
       const reader = new FileReader();
       reader.onload = async () => {
         const dataUrl = reader.result as string;
-        const { error } = await supabase.from('elevation_images').insert({
-          preset_key: presetKey.trim(),
-          image_path: filePath,
-          image_url: dataUrl,
+        const token = localStorage.getItem('admin_session_token');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase.rpc as any)('admin_insert_elevation_image', {
+          p_token: token, p_preset_key: presetKey.trim(),
+          p_image_path: filePath, p_image_url: dataUrl,
         });
         if (error) toast.error('Failed to save');
         else { toast.success('Elevation image uploaded'); onRefresh(); }
@@ -1154,10 +1161,11 @@ const LayoutsTab = ({ presets, elevationImages, onRefresh }: { presets: any[]; e
     }
 
     const { data: urlData } = supabase.storage.from('elevation-images').getPublicUrl(filePath);
-    const { error } = await supabase.from('elevation_images').insert({
-      preset_key: presetKey.trim(),
-      image_path: filePath,
-      image_url: urlData.publicUrl,
+    const token = localStorage.getItem('admin_session_token');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.rpc as any)('admin_insert_elevation_image', {
+      p_token: token, p_preset_key: presetKey.trim(),
+      p_image_path: filePath, p_image_url: urlData.publicUrl,
     });
     if (error) toast.error('Failed to save');
     else { toast.success('Elevation image uploaded'); onRefresh(); }
