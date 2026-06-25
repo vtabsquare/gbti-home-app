@@ -65,17 +65,76 @@ serve(async (req) => {
 
       const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-      const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+      
+      const supabaseApi = createClient(supabaseUrl, supabaseKey, {
+        db: { schema: 'api' },
+      });
 
-      const { error } = await supabaseAdmin.rpc('send_admin_login_otp', {
+      const { data: otpCode, error } = await supabaseApi.rpc('send_admin_login_otp', {
         p_email: email.trim().toLowerCase(),
       });
 
       if (error) {
-        return new Response(JSON.stringify({ error: 'Failed to send OTP' }), {
-          status: 500,
+        return new Response(JSON.stringify({ error: `RPC Error: ${error.message}` }), {
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
+      }
+
+      if (!otpCode) {
+        return new Response(JSON.stringify({ error: 'NOT_FOUND' }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (otpCode === 'RATE_LIMITED' || otpCode === 'LOCKED') {
+        return new Response(JSON.stringify({ error: otpCode }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const INFOBIP_API_KEY = Deno.env.get('INFOBIP_API_KEY');
+      const INFOBIP_BASE_URL = Deno.env.get('INFOBIP_BASE_URL');
+      const INFOBIP_SENDER_EMAIL = Deno.env.get('INFOBIP_SENDER_EMAIL');
+      const INFOBIP_SENDER_NAME = Deno.env.get('INFOBIP_SENDER_NAME') || 'GBTI Team';
+
+      if (INFOBIP_API_KEY && INFOBIP_BASE_URL && INFOBIP_SENDER_EMAIL) {
+        const form = new FormData();
+        form.append('from', `${INFOBIP_SENDER_NAME} <${INFOBIP_SENDER_EMAIL}>`);
+        form.append('to', email.trim().toLowerCase());
+        form.append('subject', 'GBTI Admin — Login OTP');
+        form.append('html', `
+          <div style="font-family:Arial,sans-serif;color:#111;line-height:1.6;max-width:560px;margin:0 auto;padding:32px;">
+            <h2 style="text-align:center;margin:0 0 8px;color:#111;font-size:20px;">Admin Login OTP</h2>
+            <p style="text-align:center;color:#6b7280;margin:0 0 24px;font-size:14px;">Use the code below to sign in</p>
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px;text-align:center;margin:0 0 24px;">
+              <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#111;">${otpCode}</span>
+            </div>
+            <p style="text-align:center;color:#9ca3af;font-size:12px;margin:0;">Expires in 10 minutes.</p>
+          </div>
+        `);
+        form.append('text', `Your GBTI Admin login OTP is: ${otpCode}\n\nExpires in 10 minutes.`);
+
+        const res = await fetch(`${INFOBIP_BASE_URL}/email/3/send`, {
+          method: 'POST',
+          headers: { Authorization: `App ${INFOBIP_API_KEY}` },
+          body: form,
+        });
+
+        if (!res.ok) {
+           const body = await res.text();
+           return new Response(JSON.stringify({ error: `Infobip Error: ${res.status} ${body}` }), {
+             status: 200,
+             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+           });
+        }
+      } else {
+         return new Response(JSON.stringify({ error: 'Infobip environment variables missing in edge function' }), {
+           status: 200,
+           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+         });
       }
 
       return new Response(JSON.stringify({ success: true }), {
@@ -85,13 +144,13 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
-      status: 400,
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

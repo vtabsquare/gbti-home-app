@@ -19,10 +19,6 @@ import { Plan } from '@/lib/floorplan';
 type ConfigStore = ConfigState & ConfigActions;
 
 const TIMELINES = ['0–3 months', '3–6 months', '6–12 months', '12+ months'];
-const INFOBIP_API_KEY = import.meta.env.VITE_INFOBIP_API_KEY;
-const INFOBIP_BASE_URL = import.meta.env.VITE_INFOBIP_BASE_URL;
-const INFOBIP_SENDER_EMAIL = import.meta.env.VITE_INFOBIP_SENDER_EMAIL;
-const INFOBIP_SENDER_NAME = import.meta.env.VITE_INFOBIP_SENDER_NAME || 'GBTI Loans Team';
 
 // Tracked loan application link — Supabase increments click count per leadId
 const LOAN_APPLICATION_URL = 'https://gbtibank.com/apply-for-a-loan/';
@@ -158,24 +154,39 @@ const sendGBTIEmail = async ({
   monthlyEMI: number;
   pdfBlob?: Blob;
 }) => {
-  if (!INFOBIP_API_KEY || !INFOBIP_BASE_URL || !INFOBIP_SENDER_EMAIL) {
-    throw new Error('Infobip env is not configured');
-  }
+  const htmlContent = [
+    '<div style="font-family:Arial,sans-serif;color:#111;line-height:1.6;max-width:640px;margin:0 auto;padding:24px;">',
+    `<h1 style="font-size:28px;margin:0 0 16px;">Here is your GBTI Dream Home Estimate</h1>`,
+    `<p style="margin:0 0 16px;">Hi ${name},</p>`,
+    '<p style="margin:0 0 16px;">Thank you for exploring your possibilities with the GBTI Home Configurator. Attached, you will find a detailed breakdown of your custom home estimate.</p>',
+    `<p style="margin:0 0 16px;"><strong>Reference ID:</strong> ${leadId}</p>`,
+    '<div style="background:#f9fafb;padding:24px;border-radius:12px;margin:0 0 24px;">',
+    '<h2 style="font-size:18px;margin:0 0 12px;">Summary</h2>',
+    `<p style="margin:0 0 8px;">Estimated Home Cost: <strong>${formatMoney(cost.total)}</strong></p>`,
+    `<p style="margin:0 0 8px;">Down Payment: <strong>${formatMoney(downPayment)}</strong></p>`,
+    `<p style="margin:0 0 8px;">Loan Amount: <strong>${formatMoney(loanAmount)}</strong></p>`,
+    `<p style="margin:0;">Estimated EMI: <strong>${formatMoney(monthlyEMI)}</strong></p>`,
+    '</div>',
+    '<h2 style="font-size:18px;margin:0 0 12px;">Take the Next Step</h2>',
+    '<p style="margin:0 0 16px;">Ready to turn this estimate into reality? Start your formal application online:</p>',
+    `<a href="${LOAN_APPLICATION_URL}?ref=${leadId}" style="display:inline-block;background:#0d6efd;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;margin:0 0 24px;">Start Your Loan Application</a>`,
+    '<p style="margin:0 0 16px;">If you have any questions or need guidance, our dedicated team is here to support you. Contact us at +592 231 4400.</p>',
+    '<p style="margin:0 0 24px;">We look forward to helping you build your future.</p>',
+    '<p style="margin:0;">Best regards,<br>GBTI Loans Team</p>',
+    '</div>',
+  ].join('');
 
-  const htmlContent = buildGBTIEmailHtml({ name, leadId, cost, loanAmount, downPayment, monthlyEMI });
-
-  const form = new FormData();
-  form.append('from', `${INFOBIP_SENDER_NAME} <${INFOBIP_SENDER_EMAIL}>`);
-  form.append('to', `${name} <${email}>`);
-  form.append('subject', `${name} - Your GBTI Home Estimate is ready`);
-  form.append('html', htmlContent);
-  form.append('text', [
-    `Dear ${name},`,
+  const textContent = [
+    `Hi ${name},`,
     '',
-    'Thank you for starting your home dream journey with GBTI.',
+    'Thank you for exploring your possibilities with the GBTI Home Configurator.',
+    'Attached, you will find a detailed breakdown of your custom home estimate.',
     '',
-    'We have attached your personalized dream home and cost estimate PDF for your records.',
-    'We hope this helps you get a clearer picture of your path forward.',
+    `Reference ID: ${leadId}`,
+    `Estimated Home Cost: ${formatMoney(cost.total)}`,
+    `Down Payment: ${formatMoney(downPayment)}`,
+    `Loan Amount: ${formatMoney(loanAmount)}`,
+    `Estimated EMI: ${formatMoney(monthlyEMI)}`,
     '',
     'You can take the next step toward your goals by starting your formal application here:',
     `Start Your Loan Application: ${LOAN_APPLICATION_URL}?ref=${leadId}`,
@@ -187,21 +198,39 @@ const sendGBTIEmail = async ({
     '',
     'Best regards,',
     'GBTI Loans Team',
-  ].join('\n'));
+  ].join('\n');
+
+  const form = new FormData();
+  form.append('action', 'send_lead_estimate');
+  form.append('toName', name);
+  form.append('toEmail', email);
+  form.append('subject', 'Your GBTI Dream Home Estimate');
+  form.append('html', htmlContent);
+  form.append('text', textContent);
 
   if (pdfBlob) {
     form.append('attachment', pdfBlob, `GBTI_Estimate_${leadId.slice(0, 8).toUpperCase()}.pdf`);
   }
 
-  const response = await fetch(`${INFOBIP_BASE_URL}/email/3/send`, {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/email-api`, {
     method: 'POST',
-    headers: { Authorization: `App ${INFOBIP_API_KEY}` },
+    headers: {
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+    },
     body: form,
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Infobip request failed');
+    throw new Error(`Email API request failed: ${response.status} ${errorText}`);
+  }
+
+  const result = await response.json();
+  if (result.error) {
+    throw new Error(result.error);
   }
 };
 
@@ -543,42 +572,22 @@ export const StepLeadCapture = ({ cost, plan, onReset }: Props) => {
       }
 
       // Send email
-      if (INFOBIP_API_KEY && INFOBIP_BASE_URL && INFOBIP_SENDER_EMAIL) {
-        await sendGBTIEmail({
-          name: c.name.trim(),
-          email: finalEmail,
-          leadId,
-          cost,
-          loanAmount: finalQuote.loanAmount,
-          downPayment: finalQuote.downPayment,
-          monthlyEMI: finalQuote.monthlyEMI,
-          pdfBlob,
-        });
-      } else {
-        // Fallback: Supabase edge function
-        await supabase.functions.invoke('send-proposal-email', {
-          body: {
-            leadId,
-            name: c.name.trim(),
-            email: finalEmail,
-            phone: c.phone.trim(),
-            timeline: timelineVal,
-            estimate: {
-              total: cost.total,
-              area: cost.area,
-              downPayment: finalQuote.downPayment,
-              loanAmount: finalQuote.loanAmount,
-              emi: finalQuote.monthlyEMI,
-              items: cost.items,
-            },
-          },
-        });
-      }
+      await sendGBTIEmail({
+        name: c.name.trim(),
+        email: finalEmail,
+        leadId,
+        cost,
+        loanAmount: finalQuote.loanAmount,
+        downPayment: finalQuote.downPayment,
+        monthlyEMI: finalQuote.monthlyEMI,
+        pdfBlob,
+      });
 
       setShowInboxModal(false);
       setDone(true);
-    } catch {
-      toast.error('Estimate saved, but email delivery failed. Please try again.');
+    } catch (err: any) {
+      console.error("Email delivery catch block error:", err);
+      toast.error('Estimate saved, but email delivery failed: ' + (err.message || 'Please try again.'));
     } finally {
       setSending(false);
     }

@@ -10,7 +10,7 @@ import {
   TrendingUp, Calendar, Eye, Image, RefreshCw, ArrowLeft, LogOut
 } from 'lucide-react';
 
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -107,10 +107,6 @@ const DEFAULT_PRICING: PricingConfig = {
 
 type Tab = 'dashboard' | 'leads' | 'pricing' | 'layouts';
 
-const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY;
-const BREVO_SENDER_EMAIL = import.meta.env.VITE_BREVO_SENDER_EMAIL;
-const BREVO_SENDER_NAME = import.meta.env.VITE_BREVO_SENDER_NAME || 'GBTI Architectural Team';
-
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const AdminDashboard = () => {
@@ -206,7 +202,13 @@ const AdminDashboard = () => {
       headers: { 'x-session-token': token },
     });
     if (!error && result?.data) setLeads(result.data as Lead[]);
-    else if (error) toast.error('Failed to load leads');
+    else if (error) {
+      if (error.message?.includes('Unauthorized') || (error as any).context?.status === 401) {
+        handleLogout();
+      } else {
+        toast.error('Failed to load leads');
+      }
+    }
   }, []);
 
   const fetchPricing = useCallback(async () => {
@@ -696,8 +698,8 @@ const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh
       toast.error('Please fill in subject and body');
       return;
     }
-    if (!BREVO_API_KEY || !BREVO_SENDER_EMAIL) {
-      toast.error('Brevo API is not configured');
+    if (!sessionToken) {
+      toast.error('Not authorized to send emails');
       return;
     }
 
@@ -713,19 +715,13 @@ const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh
 
     for (const lead of selectedLeads) {
       try {
-        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: {
-            accept: 'application/json',
-            'api-key': BREVO_API_KEY,
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            sender: { email: BREVO_SENDER_EMAIL, name: BREVO_SENDER_NAME },
-            to: [{ email: lead.email, name: lead.name }],
-            replyTo: { email: BREVO_SENDER_EMAIL, name: BREVO_SENDER_NAME },
+        const { error } = await supabase.functions.invoke('email-api', {
+          body: {
+            action: 'send_admin_bulk_email',
+            toName: lead.name,
+            toEmail: lead.email,
             subject: emailSubject,
-            htmlContent: `
+            html: `
               <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.6;max-width:640px;margin:0 auto;padding:24px;">
                 <p>Hi ${lead.name},</p>
                 <div style="margin:16px 0;white-space:pre-wrap;">${emailBody.replace(/\n/g, '<br/>')}</div>
@@ -733,10 +729,14 @@ const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh
                 <p style="font-size:12px;color:#9ca3af;">Sent by GBTI Architectural Team</p>
               </div>
             `,
-            textContent: `Hi ${lead.name},\n\n${emailBody}\n\n--\nGBTI Architectural Team`,
-          }),
+            text: `Hi ${lead.name},\n\n${emailBody}\n\n--\nGBTI Architectural Team`
+          },
+          headers: {
+            'x-session-token': sessionToken
+          }
         });
-        if (response.ok) sent++;
+
+        if (!error) sent++;
         else failed++;
       } catch {
         failed++;
