@@ -19,10 +19,6 @@ import { Plan } from '@/lib/floorplan';
 type ConfigStore = ConfigState & ConfigActions;
 
 const TIMELINES = ['0–3 months', '3–6 months', '6–12 months', '12+ months'];
-const INFOBIP_API_KEY = import.meta.env.VITE_INFOBIP_API_KEY;
-const INFOBIP_BASE_URL = import.meta.env.VITE_INFOBIP_BASE_URL;
-const INFOBIP_SENDER_EMAIL = import.meta.env.VITE_INFOBIP_SENDER_EMAIL;
-const INFOBIP_SENDER_NAME = import.meta.env.VITE_INFOBIP_SENDER_NAME || 'GBTI Loans Team';
 
 // Tracked loan application link — Supabase increments click count per leadId
 const LOAN_APPLICATION_URL = 'https://gbtibank.com/apply-for-a-loan/';
@@ -137,73 +133,19 @@ const buildGBTIEmailHtml = ({
 </html>
 `;
 
-// ── Send email via Infobip with PDF attachment ──────────────────────────────
+// ── Blob → base64 helper ─────────────────────────────────────────────────────
 
-const sendGBTIEmail = async ({
-  name,
-  email,
-  leadId,
-  cost,
-  loanAmount,
-  downPayment,
-  monthlyEMI,
-  pdfBlob,
-}: {
-  name: string;
-  email: string;
-  leadId: string;
-  cost: CostBreakdown;
-  loanAmount: number;
-  downPayment: number;
-  monthlyEMI: number;
-  pdfBlob?: Blob;
-}) => {
-  if (!INFOBIP_API_KEY || !INFOBIP_BASE_URL || !INFOBIP_SENDER_EMAIL) {
-    throw new Error('Infobip env is not configured');
-  }
-
-  const htmlContent = buildGBTIEmailHtml({ name, leadId, cost, loanAmount, downPayment, monthlyEMI });
-
-  const form = new FormData();
-  form.append('from', `${INFOBIP_SENDER_NAME} <${INFOBIP_SENDER_EMAIL}>`);
-  form.append('to', `${name} <${email}>`);
-  form.append('subject', `${name} - Your GBTI Home Estimate is ready`);
-  form.append('html', htmlContent);
-  form.append('text', [
-    `Dear ${name},`,
-    '',
-    'Thank you for starting your home dream journey with GBTI.',
-    '',
-    'We have attached your personalized dream home and cost estimate PDF for your records.',
-    'We hope this helps you get a clearer picture of your path forward.',
-    '',
-    'You can take the next step toward your goals by starting your formal application here:',
-    `Start Your Loan Application: ${LOAN_APPLICATION_URL}?ref=${leadId}`,
-    '',
-    `Our dedicated team is here to support you at every stage. If you have any questions`,
-    `or need guidance, please don't hesitate to reach out on +592 231 4400`,
-    '',
-    'We look forward to helping you build your future.',
-    '',
-    'Best regards,',
-    'GBTI Loans Team',
-  ].join('\n'));
-
-  if (pdfBlob) {
-    form.append('attachment', pdfBlob, `GBTI_Estimate_${leadId.slice(0, 8).toUpperCase()}.pdf`);
-  }
-
-  const response = await fetch(`${INFOBIP_BASE_URL}/email/3/send`, {
-    method: 'POST',
-    headers: { Authorization: `App ${INFOBIP_API_KEY}` },
-    body: form,
+const blobToBase64 = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      // Strip the data URL prefix (e.g. "data:application/pdf;base64,")
+      resolve(result.split(',')[1]);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || 'Infobip request failed');
-  }
-};
 
 // ── Send to Inbox Modal ─────────────────────────────────────────────────────
 
@@ -542,38 +484,71 @@ export const StepLeadCapture = ({ cost, plan, onReset }: Props) => {
         console.error('PDF generation failed, sending without attachment:', pdfErr);
       }
 
-      // Send email
-      if (INFOBIP_API_KEY && INFOBIP_BASE_URL && INFOBIP_SENDER_EMAIL) {
-        await sendGBTIEmail({
+      // Build email content client-side (layout), send credentials-free via Edge Function
+      const htmlContent = buildGBTIEmailHtml({
+        name: c.name.trim(),
+        leadId,
+        cost,
+        loanAmount: finalQuote.loanAmount,
+        downPayment: finalQuote.downPayment,
+        monthlyEMI: finalQuote.monthlyEMI,
+      });
+      const textContent = [
+        `Dear ${c.name.trim()},`,
+        '',
+        'Thank you for starting your home dream journey with GBTI.',
+        '',
+        'We have attached your personalized dream home and cost estimate PDF for your records.',
+        'We hope this helps you get a clearer picture of your path forward.',
+        '',
+        'You can take the next step toward your goals by starting your formal application here:',
+        `Start Your Loan Application: ${LOAN_APPLICATION_URL}?ref=${leadId}`,
+        '',
+        `Our dedicated team is here to support you at every stage. If you have any questions`,
+        `or need guidance, please don't hesitate to reach out on +592 231 4400`,
+        '',
+        'We look forward to helping you build your future.',
+        '',
+        'Best regards,',
+        'GBTI Loans Team',
+      ].join('\n');
+
+      // Convert PDF blob to base64 for server-side attachment
+      let pdfAttachmentBase64: string | undefined;
+      let pdfAttachmentName: string | undefined;
+      if (pdfBlob) {
+        try {
+          pdfAttachmentBase64 = await blobToBase64(pdfBlob);
+          pdfAttachmentName = `GBTI_Estimate_${leadId.slice(0, 8).toUpperCase()}.pdf`;
+        } catch (b64Err) {
+          console.warn('PDF base64 conversion failed, sending without attachment:', b64Err);
+        }
+      }
+
+      // All API credentials remain server-side in the Edge Function
+      const { error: emailError } = await supabase.functions.invoke('send-proposal-email', {
+        body: {
+          leadId,
           name: c.name.trim(),
           email: finalEmail,
-          leadId,
-          cost,
-          loanAmount: finalQuote.loanAmount,
-          downPayment: finalQuote.downPayment,
-          monthlyEMI: finalQuote.monthlyEMI,
-          pdfBlob,
-        });
-      } else {
-        // Fallback: Supabase edge function
-        await supabase.functions.invoke('send-proposal-email', {
-          body: {
-            leadId,
-            name: c.name.trim(),
-            email: finalEmail,
-            phone: c.phone.trim(),
-            timeline: timelineVal,
-            estimate: {
-              total: cost.total,
-              area: cost.area,
-              downPayment: finalQuote.downPayment,
-              loanAmount: finalQuote.loanAmount,
-              emi: finalQuote.monthlyEMI,
-              items: cost.items,
-            },
+          phone: c.phone.trim(),
+          timeline: timelineVal,
+          estimate: {
+            total: cost.total,
+            area: cost.area,
+            downPayment: finalQuote.downPayment,
+            loanAmount: finalQuote.loanAmount,
+            emi: finalQuote.monthlyEMI,
+            items: cost.items,
           },
-        });
-      }
+          htmlContent,
+          textContent,
+          pdfAttachmentBase64,
+          pdfAttachmentName,
+        },
+      });
+
+      if (emailError) throw emailError;
 
       setShowInboxModal(false);
       setDone(true);

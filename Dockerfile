@@ -9,6 +9,10 @@ COPY package*.json ./
 # Install dependencies using npm ci (clean install for predictable builds)
 RUN npm ci
 
+# Run a security audit to fail the build if there are any high or critical vulnerabilities
+# --audit-level=high ensures we don't break the build for minor issues, only real threats
+RUN npm audit --audit-level=high --production
+
 # Copy the rest of the application source code
 COPY . .
 
