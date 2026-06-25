@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { supabase } from '@/integrations/supabase/client';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,7 +8,6 @@ import { ArrowRight, Mail, Send, ShieldCheck, Smartphone, User, Phone, Clock, Ma
 import { GBTILogoMark } from './GBTILogo';
 import { useConfig } from '@/store/configurator';
 
-// Auth constants removed
 
 // ── Device info helpers ─────────────────────────────────────
 
@@ -57,6 +57,7 @@ export const GatePage = ({ onProceed, mode = 'qr' }: GatePageProps) => {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('+592 ');
   const [preferredBranch, setPreferredBranch] = useState('');
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
   const [showAuth, setShowAuth] = useState(mode === 'auth');
@@ -94,10 +95,28 @@ export const GatePage = ({ onProceed, mode = 'qr' }: GatePageProps) => {
 
     setLoading(true);
 
+    // Get reCAPTCHA v3 token and verify server-side
+    try {
+      const captchaToken = executeRecaptcha ? await executeRecaptcha('gate_form') : null;
+      if (!captchaToken) { toast.error('CAPTCHA check failed. Please try again.'); setLoading(false); return; }
+      const { error: captchaError } = await supabase.functions.invoke('captcha-otp', {
+        body: { action: 'verify_only', captchaToken },
+      });
+      if (captchaError) {
+        toast.error('CAPTCHA verification failed. Please try again.');
+        setLoading(false);
+        return;
+      }
+    } catch {
+      toast.error('CAPTCHA check failed. Please try again.');
+      setLoading(false);
+      return;
+    }
+
     // Store device/session info and visitor details
     const info = getDeviceInfo();
     try {
-      await supabase.rpc('store_visitor_session', {
+      await (supabase.rpc as any)('store_visitor_session', {
         p_email: email.trim(),
         p_device_type: info.deviceType,
         p_browser: info.browser,

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { formatMoney } from '@/lib/cost';
@@ -150,12 +151,21 @@ const AdminDashboard = () => {
   }, []);
 
   // ── Login handlers ────────────────────────────────────────────────────────
+  const { executeRecaptcha } = useGoogleReCaptcha();
+
   const handleSendOtp = async () => {
     setLoginLoading(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.rpc as any)('send_admin_login_otp', { p_email: loginEmail.trim() });
-    if (error) toast.error('Failed to send OTP — check the email address.');
-    else { setLoginStep('otp'); toast.success('OTP sent — check your email'); }
+    try {
+      const captchaToken = executeRecaptcha ? await executeRecaptcha('admin_otp') : null;
+      if (!captchaToken) { toast.error('CAPTCHA check failed. Please try again.'); setLoginLoading(false); return; }
+      const { error } = await supabase.functions.invoke('captcha-otp', {
+        body: { action: 'send_admin_otp', email: loginEmail.trim(), captchaToken },
+      });
+      if (error) toast.error('Failed to send OTP — check the email address.');
+      else { setLoginStep('otp'); toast.success('OTP sent — check your email'); }
+    } catch {
+      toast.error('Failed to send OTP. Please try again.');
+    }
     setLoginLoading(false);
   };
 

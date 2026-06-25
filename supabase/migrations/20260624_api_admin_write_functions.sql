@@ -13,7 +13,7 @@ AS $$
 BEGIN
   RETURN COALESCE(
     (SELECT json_agg(e ORDER BY e.created_at DESC) FROM public.elevation_images e),
-    '[]'::json
+       '[]'::json
   );
 END;
 $$;
