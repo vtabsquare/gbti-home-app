@@ -10,7 +10,7 @@ import {
   TrendingUp, Calendar, Eye, Image, RefreshCw, ArrowLeft, LogOut
 } from 'lucide-react';
 
-import ExcelJS from 'exceljs';
+import * as XLSX from 'xlsx';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -107,6 +107,9 @@ const DEFAULT_PRICING: PricingConfig = {
 
 type Tab = 'dashboard' | 'leads' | 'pricing' | 'layouts';
 
+const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY;
+const BREVO_SENDER_EMAIL = import.meta.env.VITE_BREVO_SENDER_EMAIL;
+const BREVO_SENDER_NAME = import.meta.env.VITE_BREVO_SENDER_NAME || 'GBTI Architectural Team';
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
@@ -612,64 +615,10 @@ const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showEmailModal, setShowEmailModal] = useState(false);
-
-
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [viewLead, setViewLead] = useState<Lead | null>(null);
-
-  const exportLeads = async () => {
-    if (leads.length === 0) {
-      toast.error('No leads to export');
-      return;
-    }
-
-    const rows = leads.map((l) => ({
-      ID: l.id,
-      Name: l.name,
-      Email: l.email,
-      Phone: l.phone,
-      'Home Type': l.config?.home_type || '',
-      Bedrooms: l.config?.bedrooms || '',
-      Bathrooms: l.config?.bathrooms || '',
-      Kitchen: l.config?.kitchen || '',
-      'Add-ons': (l.config?.addons || []).join(', '),
-      'Total Cost': l.total_cost || 0,
-      'Created At': new Date(l.created_at).toLocaleString(),
-    }));
-
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Leads');
-
-    // Define columns and auto-size widths based on content
-    const keys = Object.keys(rows[0] || {});
-    ws.columns = keys.map((key) => ({
-      header: key,
-      key: key,
-      width: Math.max(key.length, ...rows.map((r) => String((r as any)[key]).length)) + 2,
-    }));
-
-    // Add data rows
-    ws.addRows(rows);
-
-    // Style the header row
-    ws.getRow(1).font = { bold: true };
-
-    // Export the workbook
-    const buffer = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `GBTI_Leads_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    toast.success(`Exported ${rows.length} leads to Excel`);
-  };
 
   const filtered = useMemo(() => {
     if (!search.trim()) return leads;
@@ -747,6 +696,10 @@ const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh
       toast.error('Please fill in subject and body');
       return;
     }
+    if (!BREVO_API_KEY || !BREVO_SENDER_EMAIL) {
+      toast.error('Brevo API is not configured');
+      return;
+    }
 
     const selectedLeads = leads.filter((l) => selected.has(l.id));
     if (selectedLeads.length === 0) {
@@ -755,37 +708,36 @@ const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh
     }
 
     setSendingEmail(true);
-
-    // All Brevo credentials are server-side in the send-email Edge Function
-    // We send one batch request with all recipients instead of per-lead fetches
-    const token = localStorage.getItem('admin_session_token');
     let sent = 0;
     let failed = 0;
 
     for (const lead of selectedLeads) {
       try {
-        const htmlContent = `
-          <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.6;max-width:640px;margin:0 auto;padding:24px;">
-            <p>Hi ${lead.name},</p>
-            <div style="margin:16px 0;white-space:pre-wrap;">${emailBody.replace(/\n/g, '<br/>')}</div>
-            <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb;" />
-            <p style="font-size:12px;color:#9ca3af;">Sent by GBTI Architectural Team</p>
-          </div>
-        `;
-        const textContent = `Hi ${lead.name},\n\n${emailBody}\n\n--\nGBTI Architectural Team`;
-
-        const { data: result, error } = await supabase.functions.invoke('send-email', {
-          body: {
-            recipients: [{ email: lead.email, name: lead.name }],
-            subject: emailSubject,
-            htmlContent,
-            textContent,
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            accept: 'application/json',
+            'api-key': BREVO_API_KEY,
+            'content-type': 'application/json',
           },
-          headers: token ? { 'x-session-token': token } : {},
+          body: JSON.stringify({
+            sender: { email: BREVO_SENDER_EMAIL, name: BREVO_SENDER_NAME },
+            to: [{ email: lead.email, name: lead.name }],
+            replyTo: { email: BREVO_SENDER_EMAIL, name: BREVO_SENDER_NAME },
+            subject: emailSubject,
+            htmlContent: `
+              <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.6;max-width:640px;margin:0 auto;padding:24px;">
+                <p>Hi ${lead.name},</p>
+                <div style="margin:16px 0;white-space:pre-wrap;">${emailBody.replace(/\n/g, '<br/>')}</div>
+                <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb;" />
+                <p style="font-size:12px;color:#9ca3af;">Sent by GBTI Architectural Team</p>
+              </div>
+            `,
+            textContent: `Hi ${lead.name},\n\n${emailBody}\n\n--\nGBTI Architectural Team`,
+          }),
         });
-
-        if (error || !result?.ok) failed++;
-        else sent += result.sent ?? 1;
+        if (response.ok) sent++;
+        else failed++;
       } catch {
         failed++;
       }
@@ -797,7 +749,6 @@ const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh
     setEmailBody('');
     toast.success(`Sent: ${sent} | Failed: ${failed}`);
   };
-
 
   return (
     <TabWrapper

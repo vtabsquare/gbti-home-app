@@ -10,8 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "prepare": "husky"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -53,7 +52,6 @@
     "date-fns": "^3.6.0",
     "dotenv": "^17.4.2",
     "embla-carousel-react": "^8.6.0",
-    "exceljs": "^4.4.0",
     "form-data": "^4.0.5",
     "framer-motion": "^12.38.0",
     "input-otp": "^1.4.2",
@@ -77,6 +75,7 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.184.0",
     "vaul": "^0.9.9",
+    "xlsx": "^0.18.5",
     "zod": "^3.25.76",
     "zustand": "^5.0.12"
   },
@@ -94,7 +93,6 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
-    "husky": "^9.1.7",
     "jsdom": "^20.0.3",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",

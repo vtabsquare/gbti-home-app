@@ -24,14 +24,7 @@ type ProposalPayload = {
     emi: number;
     items: Array<{ label: string; amount: number }>;
   };
-  // Pre-built HTML from client (for the rich GBTI-branded email)
-  htmlContent?: string;
-  // Plain text fallback
-  textContent?: string;
-  // Base64-encoded PDF for attachment (optional)
-  pdfAttachmentBase64?: string;
-  pdfAttachmentName?: string;
-  configuration?: {
+  configuration: {
     land: string | null;
     landSize: string | null;
     customLandArea: number;
@@ -58,14 +51,13 @@ const renderItems = (items: ProposalPayload['estimate']['items']) =>
     .map((item) => `<li style="margin:0 0 8px;">${item.label}: <strong>${formatMoney(item.amount)}</strong></li>`)
     .join('');
 
-// Fallback HTML builder (used when client doesn't send htmlContent)
-const buildFallbackHtml = (payload: ProposalPayload) => {
-  const addons = payload.configuration?.addons?.length ? payload.configuration.addons.join(', ') : 'None';
-  const landText = payload.configuration?.land === 'need'
+const buildHtml = (payload: ProposalPayload) => {
+  const addons = payload.configuration.addons.length > 0 ? payload.configuration.addons.join(', ') : 'None';
+  const landText = payload.configuration.land === 'need'
     ? payload.configuration.landSize === 'custom'
       ? `Need land · ${payload.configuration.customLandArea} sqft`
       : `Need land · ${payload.configuration.landSize || 'Not specified'}`
-    : payload.configuration?.land === 'own'
+    : payload.configuration.land === 'own'
       ? 'Already own land'
       : 'Land preference not specified';
 
@@ -83,7 +75,6 @@ const buildFallbackHtml = (payload: ProposalPayload) => {
         <p style="margin:0 0 8px;">Loan amount: <strong>${formatMoney(payload.estimate.loanAmount)}</strong></p>
         <p style="margin:0;">Estimated monthly EMI: <strong>${formatMoney(payload.estimate.emi)}</strong></p>
       </div>
-      ${payload.configuration ? `
       <div style="border:1px solid #e5e7eb;border-radius:16px;padding:20px;margin:0 0 24px;">
         <h2 style="font-size:20px;margin:0 0 12px;">Configuration overview</h2>
         <p style="margin:0 0 8px;">Home type: <strong>${payload.configuration.homeType}</strong></p>
@@ -96,7 +87,6 @@ const buildFallbackHtml = (payload: ProposalPayload) => {
         <p style="margin:0 0 8px;">Land: <strong>${landText}</strong></p>
         <p style="margin:0;">Add-ons: <strong>${addons}</strong></p>
       </div>
-      ` : ''}
       <div style="border:1px solid #e5e7eb;border-radius:16px;padding:20px;margin:0 0 24px;">
         <h2 style="font-size:20px;margin:0 0 12px;">Estimate breakdown</h2>
         <ul style="padding-left:20px;margin:0;">
@@ -115,7 +105,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // All credentials read server-side — never exposed to client
     const apiKey = Deno.env.get('INFOBIP_API_KEY');
     const baseUrl = Deno.env.get('INFOBIP_BASE_URL');
     const senderEmail = Deno.env.get('INFOBIP_SENDER_EMAIL');
@@ -136,9 +125,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Use rich HTML from client if provided, otherwise build a fallback
-    const htmlContent = payload.htmlContent || buildFallbackHtml(payload);
-    const textContent = payload.textContent || [
+    const htmlContent = buildHtml(payload);
+    const textContent = [
       `Hi ${payload.name},`,
       '',
       'Thank you for contacting us. Our agents will contact you soon.',
@@ -155,24 +143,9 @@ Deno.serve(async (req: Request) => {
     const form = new FormData();
     form.append('from', `${senderName} <${senderEmail}>`);
     form.append('to', `${payload.name} <${payload.email}>`);
-    form.append('subject', `${payload.name} - Your GBTI Home Estimate is ready`);
+    form.append('subject', 'Your GBTI proposal request and estimate');
     form.append('html', htmlContent);
     form.append('text', textContent);
-
-    // Attach PDF if provided (base64 → Blob)
-    if (payload.pdfAttachmentBase64 && payload.pdfAttachmentName) {
-      try {
-        const binaryStr = atob(payload.pdfAttachmentBase64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        const pdfBlob = new Blob([bytes], { type: 'application/pdf' });
-        form.append('attachment', pdfBlob, payload.pdfAttachmentName);
-      } catch (attachErr) {
-        console.warn('PDF attachment failed, sending without attachment:', attachErr);
-      }
-    }
 
     const infobipResponse = await fetch(`${baseUrl}/email/3/send`, {
       method: 'POST',
