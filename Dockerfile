@@ -8,6 +8,7 @@ COPY package*.json ./
 
 # Install dependencies using npm ci (clean install for predictable builds)
 RUN npm ci
+RUN npm audit --audit-level=high --production
 
 # Copy the rest of the application source code
 COPY . .

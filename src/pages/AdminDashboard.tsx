@@ -10,7 +10,7 @@ import {
   TrendingUp, Calendar, Eye, Image, RefreshCw, ArrowLeft, LogOut
 } from 'lucide-react';
 
-import * as XLSX from 'xlsx-js-style';
+import ExcelJS from 'exceljs';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -664,7 +664,7 @@ const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh
     }
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const toExport = selected.size > 0 ? leads.filter((l) => selected.has(l.id)) : filtered;
     const rows = toExport.map((l) => ({
       Name: l.name,
@@ -679,17 +679,31 @@ const LeadsTab = ({ leads, onRefresh, sessionToken }: { leads: Lead[]; onRefresh
       'Total Cost': l.total_cost || 0,
       'Created At': new Date(l.created_at).toLocaleString(),
     }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Leads');
 
-    // Auto-size columns
-    const colWidths = Object.keys(rows[0] || {}).map((key) => ({
-      wch: Math.max(key.length, ...rows.map((r) => String((r as any)[key]).length)) + 2,
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Leads');
+
+    // Set up columns from row keys
+    const keys = Object.keys(rows[0] || {});
+    ws.columns = keys.map((key) => ({
+      header: key,
+      key,
+      width: Math.max(key.length, ...rows.map((r) => String((r as any)[key]).length)) + 2,
     }));
-    ws['!cols'] = colWidths;
 
-    XLSX.writeFile(wb, `GBTI_Leads_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    // Add data rows
+    rows.forEach((r) => ws.addRow(r));
+
+    // Write to buffer and trigger download
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `GBTI_Leads_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+
     toast.success(`Exported ${rows.length} leads to Excel`);
   };
 
