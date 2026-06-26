@@ -73,31 +73,49 @@ END;
 $$;
 
 -- Verify visitor OTP
+-- SCR-GBTI-03 Fix: Uses atomic DELETE...RETURNING to eliminate TOCTOU race condition.
+-- Only the caller whose DELETE actually removes the row receives TRUE;
+-- any concurrent call with the same OTP gets FALSE.
 CREATE OR REPLACE FUNCTION verify_visitor_otp(p_email TEXT, p_otp TEXT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_record visitor_otps%ROWTYPE;
+  v_deleted        INT;
+  v_record         visitor_otps%ROWTYPE;
   v_submitted_hash TEXT;
 BEGIN
-  SELECT * INTO v_record FROM visitor_otps
-  WHERE email = LOWER(TRIM(p_email))
-    AND expires_at > NOW();
+  -- Fetch the OTP record (non-locking read to get the salt for hashing)
+  SELECT * INTO v_record
+  FROM visitor_otps
+  WHERE email      = LOWER(TRIM(p_email))
+    AND expires_at > NOW()
+    AND otp_hash   IS NOT NULL
+    AND otp_salt   IS NOT NULL;
 
-  IF v_record.email IS NULL THEN
+  IF NOT FOUND THEN
     RETURN FALSE;
   END IF;
 
+  -- Hash the submitted OTP with the stored salt
   v_submitted_hash := encode(digest(p_otp || v_record.otp_salt, 'sha256'), 'hex');
 
-  IF v_submitted_hash = v_record.otp_hash THEN
-    DELETE FROM visitor_otps WHERE email = LOWER(TRIM(p_email));
-    RETURN TRUE;
+  IF v_submitted_hash != v_record.otp_hash THEN
+    RETURN FALSE;
   END IF;
 
-  RETURN FALSE;
+  -- Atomically consume the OTP row — eliminates TOCTOU window.
+  -- Uses email (the PRIMARY KEY) + otp_hash re-check for atomic guarantee.
+  -- Only one concurrent caller will delete this row; all others get ROW_COUNT=0.
+  DELETE FROM visitor_otps
+  WHERE email      = LOWER(TRIM(p_email))
+    AND expires_at > NOW()
+    AND otp_hash   = v_record.otp_hash;
+
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+
+  RETURN v_deleted > 0;
 END;
 $$;
 

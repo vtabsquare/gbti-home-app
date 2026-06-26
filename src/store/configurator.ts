@@ -410,14 +410,16 @@ export const useConfig = create<ConfigState & ConfigActions>()(
       },
       savePackageLayout: async (packageKey, groundPlan, firstFloorPlan) => {
         const fullPlan = { ground: groundPlan, first: firstFloorPlan };
+        // SCR-GBTI-02: The package_layouts table is now write-protected — only an
+        // authenticated admin session may persist layouts to the database.
+        // Public configurator edits are kept in zustand state for the current session;
+        // they are intentionally not written to the DB without admin authorisation.
         set((s) => ({
           packageLayouts: {
             ...s.packageLayouts,
             [packageKey]: fullPlan,
           },
         }));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase.rpc as any)('upsert_package_layout', { p_package_key: packageKey, p_plan_data: fullPlan });
       },
       saveAsPreset: async (name, groundPlan, firstFloorPlan) => {
         const fullPlan = { ground: groundPlan, first: firstFloorPlan };
