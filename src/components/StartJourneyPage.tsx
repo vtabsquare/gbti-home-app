@@ -41,7 +41,7 @@ export const StartJourneyPage = ({ onProceed }: StartJourneyPageProps) => {
 
   useEffect(() => {
     // ← Update this URL when a new build is deployed
-    const url = 'https://dev-gbti-web.pocweburl.com/';
+    const url = 'https://gbti-web.pocweburl.com/';
     setQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(url)}&bgcolor=ffffff&color=111111&format=svg`);
     const t = setTimeout(() => setLogoReady(true), 300);
     return () => clearTimeout(t);
